@@ -105,7 +105,13 @@ input:focus,textarea:focus{outline:2px solid var(--vio);border-color:transparent
 .prev{background:#fff;border-radius:14px;padding:12px;margin-top:14px;font-size:13px;color:var(--mut);line-height:1.65}
 .prev b{color:var(--ink)}
 .tip{font-size:12px;color:var(--mut);line-height:1.5;margin-top:10px}
-.hide .num,.hide .v,.hide .donut .c b,.hide .leg b,.hide .amt,.hide .ycard .sub b,.hide .fact span,.hide .mcell b,.hide .ytable td{filter:blur(7px)}
+.hide .num,.hide .v,.hide .donut .c b,.hide .leg b,.hide .amt,.hide .ycard .sub b,.hide .fact b,.hide .fact span,.hide .mcell b,.hide .ytable td{filter:blur(9px);user-select:none}
+#eye.locked{background:var(--ink);color:#fff;border-color:var(--ink)}
+.pinsheet{text-align:center}
+.pinsheet input{text-align:center;font-size:28px;letter-spacing:.4em;max-width:240px;margin:6px auto 0;display:block}
+.pinerr{color:#9b1c1c;font-size:13px;min-height:18px;margin-top:8px}
+@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.shake{animation:shake .35s}
 .mgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
 .mcell{background:#f6f5ff;border:1px solid #ebe8fb;border-radius:14px;padding:9px 10px;text-align:left;color:var(--ink);min-height:56px;display:flex;flex-direction:column;gap:2px}
 .mcell small{font-size:11px;color:var(--mut);font-weight:600}
@@ -179,6 +185,18 @@ code{background:#fff;padding:1px 5px;border-radius:5px;font-size:12px}
 </div></div>
 
 <!-- Réglages -->
+<div class="modal" id="mPin"><div class="sheet pinsheet">
+  <h3 id="pin-title">Code</h3>
+  <p class="tip" id="pin-txt" style="margin-top:0"></p>
+  <label for="pin-1" id="pin-l1" style="text-align:center">Code</label>
+  <input id="pin-1" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off">
+  <div id="pin-2wrap"><label for="pin-2" style="text-align:center">Confirme le code</label>
+  <input id="pin-2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off"></div>
+  <div class="pinerr" id="pin-err"></div>
+  <button class="btn p" id="pin-ok">Valider</button>
+  <button class="btn s" id="pin-cancel">Annuler</button>
+</div></div>
+
 <div class="modal" id="mSet"><div class="sheet">
   <h3>Réglages</h3>
   <div class="card" style="margin:12px 0 0">
@@ -211,6 +229,11 @@ code{background:#fff;padding:1px 5px;border-radius:5px;font-size:12px}
     <button class="btn d" id="s-reset">Effacer les données de ce téléphone</button>
     <p class="tip">« Effacer » ne touche pas au fichier sur ton Drive.</p>
   </div>
+  <div class="card" style="margin:12px 0 0">
+    <div class="ttl">Code de l'œil</div>
+    <p class="tip" style="margin-top:0">L'appli s'ouvre toujours avec les montants masqués. Ce code les affiche.</p>
+    <button class="btn s" id="s-pin">Changer le code</button>
+  </div>
   <button class="btn s" id="s-close">Fermer</button>
 </div></div>
 
@@ -224,7 +247,7 @@ const MOISL=['janvier','février','mars','avril','mai','juin','juillet','août',
 const EMPTY=()=>({v:2,company:'',start:'',name:'',months:{},taux:{},updated:0});
 let DB=norm(ls(LKEY));
 let SET=ls(SKEY)||{url:'',key:'',connected:false};
-let DEMO=null, sel=null, editing=null, hidden=false;
+let DEMO=null, sel=null, editing=null, hidden=true;
 let pushTimer=null;
 
 function ls(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
@@ -439,6 +462,7 @@ const F=k=>$('#f-'+k);
 function nextMonth(){const ks=Object.keys(DB.months).sort();if(!ks.length)return DB.start||new Date().toISOString().slice(0,7);
   const [y,m]=ks[ks.length-1].split('-').map(Number);return m===12?key(y+1,1):key(y,m+1)}
 function openForm(k){
+  if(hidden)return unlock(()=>openForm(k));
   if(DEMO)return alert('Quitte la démo pour saisir tes vraies données.');
   const e=k&&DB.months[k];editing=e?k:null;
   F('title').textContent=e?'Modifier '+MOISL[+k.slice(5)-1]+' '+k.slice(0,4):'Saisir un mois';
@@ -469,6 +493,7 @@ F('cancel').onclick=()=>$('#mForm').classList.remove('on');
 
 /* ---------- réglages ---------- */
 function openSet(){
+  if(hidden)return unlock(openSet);
   $('#s-url').value=SET.url||'';$('#s-key').value=SET.key||'';
   $('#s-company').value=DB.company||'';$('#s-start').value=DB.start||'';$('#s-name').value=DB.name||'';
   $('#driveTxt').innerHTML=SET.connected?`Connecté. Tes données sont dans <code>${FILE_NAME}</code> sur ton Drive.`:
@@ -562,7 +587,48 @@ document.querySelectorAll('nav button[data-v]').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('nav button[data-v]').forEach(x=>x.classList.toggle('on',x===b));
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+view));setTitle();window.scrollTo(0,0)});
 $('#addBtn').onclick=()=>openForm();
-$('#eye').onclick=()=>{hidden=!hidden;document.body.classList.toggle('hide',hidden)};
+
+/* ---------- masquage + code ---------- */
+const EYE_ON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-2.6 3.5M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7a9.6 9.6 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/></svg>';
+function lock(){hidden=true;document.body.classList.add('hide');$('#eye').innerHTML=EYE_OFF;$('#eye').classList.add('locked');$('#eye').setAttribute('aria-label','Afficher les montants');
+  document.querySelectorAll('#mForm,#mSet').forEach(m=>m.classList.remove('on'))}
+function show(){hidden=false;document.body.classList.remove('hide');$('#eye').innerHTML=EYE_ON;$('#eye').classList.remove('locked');$('#eye').setAttribute('aria-label','Masquer les montants')}
+async function hash(s){
+  const txt='salaires:'+s;
+  if(crypto.subtle){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(txt));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
+  let x=0;for(const c of txt)x=(x*31+c.charCodeAt(0))|0;return 'h'+x;   // page ouverte en local (sans https)
+}
+let pinCb=null,pinMode='check',pinFails=0;
+function pinDialog(mode,cb){
+  pinMode=mode;pinCb=cb;
+  const create=mode!=='check';
+  $('#pin-title').textContent=mode==='create'?'Crée ton code':mode==='change'?'Nouveau code':'Code';
+  $('#pin-txt').textContent=create?'4 à 8 chiffres. Il sera demandé pour afficher les montants.':'Saisis ton code pour afficher les montants.';
+  $('#pin-l1').textContent=create?'Nouveau code':'Code';
+  $('#pin-2wrap').style.display=create?'block':'none';
+  $('#pin-1').value='';$('#pin-2').value='';$('#pin-err').textContent='';
+  $('#mPin').classList.add('on');setTimeout(()=>$('#pin-1').focus(),100);
+}
+function unlock(cb){if(!hidden)return cb&&cb();pinDialog(SET.pinHash?'check':'create',()=>{show();cb&&cb()})}
+function pinError(t){$('#pin-err').textContent=t;const s=$('#mPin .sheet');s.classList.remove('shake');void s.offsetWidth;s.classList.add('shake');$('#pin-1').value='';$('#pin-1').focus()}
+$('#pin-ok').onclick=async()=>{
+  const a=$('#pin-1').value.trim();
+  if(pinMode==='check'){
+    if(await hash(a)===SET.pinHash){pinFails=0;$('#mPin').classList.remove('on');pinCb&&pinCb()}
+    else{pinFails++;pinError(pinFails>=3?'Code incorrect. Oublié ? Efface les données de l\'appli dans Chrome, puis reconnecte le Drive.':'Code incorrect')}
+    return;
+  }
+  if(!/^\d{4,8}$/.test(a))return pinError('Il faut 4 à 8 chiffres');
+  if(a!==$('#pin-2').value.trim())return pinError('Les deux codes sont différents');
+  SET.pinHash=await hash(a);lsSet(SKEY,SET);$('#mPin').classList.remove('on');pinCb&&pinCb();
+};
+['pin-1','pin-2'].forEach(id=>$('#'+id).addEventListener('keydown',e=>{if(e.key==='Enter')$('#pin-ok').click()}));
+$('#pin-cancel').onclick=()=>$('#mPin').classList.remove('on');
+$('#eye').onclick=()=>hidden?unlock():lock();
+$('#s-pin').onclick=()=>{$('#mSet').classList.remove('on');pinDialog('change',()=>{alert('Code modifié');})};
+document.addEventListener('visibilitychange',()=>{if(document.hidden)lock()});
+lock();
 document.querySelectorAll('.modal').forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove('on')});
 function setTitle(){$('#htitle').textContent=view==='hist'?'Historique':(years().length&&sel?'Ton année '+sel:'Salaires & Impôts')}
 
