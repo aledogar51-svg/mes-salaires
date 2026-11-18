@@ -9,7 +9,6 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%234c3bc9'/%3E%3Ccircle cx='50' cy='50' r='26' fill='none' stroke='%23ffffff' stroke-width='12' stroke-dasharray='120 44'/%3E%3Ccircle cx='50' cy='50' r='26' fill='none' stroke='%23ffb168' stroke-width='12' stroke-dasharray='14 150' stroke-dashoffset='-124'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 /* ============================================================
    Mes salaires — appli sans aucune donnée.
@@ -183,8 +182,10 @@ code{background:#fff;padding:1px 5px;border-radius:5px;font-size:12px}
   <div class="card" style="margin:12px 0 0">
     <div class="ttl">Google Drive</div>
     <p class="tip" style="margin-top:0" id="driveTxt"></p>
-    <label for="s-client">Identifiant client Google (Client ID)</label>
-    <input id="s-client" placeholder="xxxx.apps.googleusercontent.com" autocomplete="off">
+    <label for="s-url">Adresse du script</label>
+    <input id="s-url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+    <label for="s-key">Code secret <small>— le même que dans le script</small></label>
+    <input id="s-key" type="password" autocomplete="off">
     <button class="btn p" id="s-connect">Connecter mon Drive</button>
     <button class="btn s" id="s-disconnect">Déconnecter</button>
   </div>
@@ -212,13 +213,7 @@ code{background:#fff;padding:1px 5px;border-radius:5px;font-size:12px}
 </div></div>
 
 <script>
-/* ============================================================
-   CONFIG — colle ton Client ID ici, ou dans Réglages.
-   (Ce n'est pas un secret : sans ta connexion Google il ne donne accès à rien.)
-   ============================================================ */
-const CLIENT_ID = '';
 const FILE_NAME = 'mes-salaires.json';
-const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const PRIME_SEUIL = 1.3;   // un mois > 130 % du mois médian de l'année = mois avec prime
 
 const LKEY='mes-salaires-v2', SKEY='mes-salaires-settings';
@@ -226,16 +221,16 @@ const MOIS=['Janv','Févr','Mars','Avr','Mai','Juin','Juil','Août','Sept','Oct'
 const MOISL=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 const EMPTY=()=>({v:2,company:'',start:'',name:'',months:{},taux:{},updated:0});
 let DB=norm(ls(LKEY));
-let SET=ls(SKEY)||{clientId:'',connected:false,fileId:''};
+let SET=ls(SKEY)||{url:'',key:'',connected:false};
 let DEMO=null, sel=null, editing=null, hidden=false;
-let token=null, tokenExp=0, pushTimer=null;
+let pushTimer=null;
 
 function ls(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function norm(d){d={...EMPTY(),...(d||{})};d.months=d.months||{};d.taux=d.taux||{};return d}
 const $=s=>document.querySelector(s);
 const data=()=>DEMO||DB;
-const clientId=()=>(CLIENT_ID||SET.clientId||'').trim();
+const ready=()=>!!(SET.url&&SET.key);
 const key=(y,m)=>y+'-'+String(m).padStart(2,'0');
 
 /* ---------- format ---------- */
@@ -472,10 +467,10 @@ F('cancel').onclick=()=>$('#mForm').classList.remove('on');
 
 /* ---------- réglages ---------- */
 function openSet(){
-  $('#s-client').value=CLIENT_ID||SET.clientId||'';$('#s-client').disabled=!!CLIENT_ID;
+  $('#s-url').value=SET.url||'';$('#s-key').value=SET.key||'';
   $('#s-company').value=DB.company||'';$('#s-start').value=DB.start||'';$('#s-name').value=DB.name||'';
   $('#driveTxt').innerHTML=SET.connected?`Connecté. Tes données sont dans <code>${FILE_NAME}</code> sur ton Drive.`:
-    `Tes données seront enregistrées dans un fichier <code>${FILE_NAME}</code> sur ton Drive. L'appli ne voit que ce fichier.`;
+    `Colle l'adresse de ton script et ton code secret, puis connecte. Tes données sont dans <code>${FILE_NAME}</code> sur ton Drive.`;
   $('#s-disconnect').style.display=SET.connected?'block':'none';
   $('#s-connect').textContent=SET.connected?'Resynchroniser':'Connecter mon Drive';
   const ys=[...new Set(Object.keys(DB.months).map(k=>k.slice(0,4)))].sort();
@@ -485,12 +480,12 @@ function openSet(){
 }
 $('#gear').onclick=openSet;
 $('#s-close').onclick=()=>$('#mSet').classList.remove('on');
-$('#s-client').onchange=e=>{SET.clientId=e.target.value.trim();lsSet(SKEY,SET)};
+$('#s-url').onchange=e=>{SET.url=e.target.value.trim();lsSet(SKEY,SET)};
+$('#s-key').onchange=e=>{SET.key=e.target.value.trim();lsSet(SKEY,SET)};
 ['company','start','name'].forEach(k=>$('#s-'+k).onchange=e=>{DB[k]=e.target.value.trim();commit()});
-$('#s-connect').onclick=()=>{$('#mSet').classList.remove('on');connect(true)};
+$('#s-connect').onclick=()=>{SET.url=$('#s-url').value.trim();SET.key=$('#s-key').value.trim();lsSet(SKEY,SET);$('#mSet').classList.remove('on');connect()};
 $('#s-disconnect').onclick=()=>{
-  if(token&&window.google)google.accounts.oauth2.revoke(token,()=>{});
-  token=null;SET.connected=false;SET.fileId='';lsSet(SKEY,SET);setSync('','Drive non connecté');openSet();
+  SET.connected=false;lsSet(SKEY,SET);setSync('','Drive non connecté');openSet();
 };
 $('#s-exp').onclick=()=>{const b=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});const a=document.createElement('a');
   a.href=URL.createObjectURL(b);a.download='mes-salaires-'+new Date().toISOString().slice(0,10)+'.json';a.click()};
@@ -521,71 +516,41 @@ function commit(){
    GOOGLE DRIVE
    ============================================================ */
 function setSync(cls,txt){const s=$('#sync');s.className='sync '+cls;s.querySelector('span').textContent=txt}
-$('#sync').onclick=()=>SET.connected?connect(true):openSet();
-function waitGis(){return new Promise((ok,ko)=>{let n=0;const t=setInterval(()=>{
-  if(window.google&&google.accounts&&google.accounts.oauth2){clearInterval(t);ok()}else if(++n>100){clearInterval(t);ko(new Error('Google indisponible (hors ligne ?)'))}},100)})}
-async function getToken(interactive){
-  if(token&&Date.now()<tokenExp-60000)return token;
-  if(!clientId())throw new Error('Client ID manquant');
-  await waitGis();
-  return new Promise((ok,ko)=>{
-    const tc=google.accounts.oauth2.initTokenClient({client_id:clientId(),scope:SCOPE,
-      callback:r=>{if(r.error)return ko(new Error(r.error));token=r.access_token;tokenExp=Date.now()+(+r.expires_in||3600)*1000;ok(token)},
-      error_callback:e=>ko(new Error(e.type||'popup'))});
-    tc.requestAccessToken({prompt:interactive&&!SET.connected?'consent':''});
-  });
+$('#sync').onclick=()=>SET.connected?connect():openSet();
+async function call(body){
+  if(!ready())throw new Error('Adresse du script ou code manquant');
+  const r=body?await fetch(SET.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:SET.key,...body})})
+             :await fetch(SET.url+(SET.url.includes('?')?'&':'?')+'key='+encodeURIComponent(SET.key)+'&t='+Date.now());
+  const j=await r.json();
+  if(j.error)throw new Error(j.error);
+  return j;
 }
-async function api(url,opt={},retry=true){
-  const t=await getToken(false);
-  const r=await fetch(url,{...opt,headers:{...(opt.headers||{}),Authorization:'Bearer '+t}});
-  if(r.status===401&&retry){token=null;return api(url,opt,false)}
-  if(!r.ok)throw new Error('Drive '+r.status);
-  return r;
-}
-async function findFile(){
-  if(SET.fileId){try{const r=await api(`https://www.googleapis.com/drive/v3/files/${SET.fileId}?fields=id,trashed`);const j=await r.json();if(!j.trashed)return j.id}catch(e){}}
-  const q=encodeURIComponent(`name='${FILE_NAME}' and trashed=false`);
-  const r=await api(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,modifiedTime)&orderBy=modifiedTime desc`);
-  const j=await r.json();return j.files&&j.files[0]?j.files[0].id:null;
-}
-async function createFile(obj){
-  const meta={name:FILE_NAME,mimeType:'application/json',description:"Données de l'appli Mes salaires"};
-  const b='salaires'+Date.now();
-  const body=`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(obj,null,2)}\r\n--${b}--`;
-  const r=await api('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body});
-  return (await r.json()).id;
-}
-async function connect(interactive){
+async function connect(){
   try{
     setSync('busy','Connexion au Drive…');
-    await getToken(interactive);
-    SET.connected=true;lsSet(SKEY,SET);
     await pull();
+    SET.connected=true;lsSet(SKEY,SET);
   }catch(e){
     console.warn(e);
-    if(SET.connected)setSync('err','Drive : '+(navigator.onLine?'reconnexion nécessaire':'hors ligne')+' — touche pour réessayer');
-    else setSync('err','Connexion impossible — vérifie le Client ID');
+    if(String(e.message).includes('code'))setSync('err','Code secret incorrect');
+    else setSync('err',navigator.onLine?'Script injoignable — vérifie l\'adresse':'Hors ligne — touche pour réessayer');
   }
 }
 async function pull(){
   setSync('busy','Lecture du Drive…');
-  let id=await findFile();
-  if(!id){id=await createFile(DB);SET.fileId=id;lsSet(SKEY,SET);setSync('ok','Synchronisé avec Drive');return}
-  SET.fileId=id;lsSet(SKEY,SET);
-  const r=await api(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`);
-  let remote;try{remote=await r.json()}catch(e){remote=null}
-  remote=norm(remote);
-  if((DB.updated||0)>(remote.updated||0)&&Object.keys(DB.months).length){await push()}   // modifs locales plus récentes
+  const j=await call(null);
+  const remote=norm(j.data);
+  const hasRemote=Object.keys(remote.months).length>0;
+  if(Object.keys(DB.months).length&&(!hasRemote||(DB.updated||0)>(remote.updated||0))){await push(true)}  // modifs locales plus récentes
   else{DB=remote;lsSet(LKEY,DB);renderAll()}
   setSync('ok','Synchronisé avec Drive');
 }
-async function push(){
+async function push(raise){
   try{
     setSync('busy','Enregistrement sur Drive…');
-    if(!SET.fileId)SET.fileId=(await findFile())||await createFile(DB);
-    await api(`https://www.googleapis.com/upload/drive/v3/files/${SET.fileId}?uploadType=media`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(DB,null,2)});
-    lsSet(SKEY,SET);setSync('ok','Synchronisé avec Drive');
-  }catch(e){console.warn(e);setSync('err','Pas encore sur Drive — touche pour réessayer')}
+    await call({data:DB});
+    setSync('ok','Synchronisé avec Drive');
+  }catch(e){console.warn(e);setSync('err','Pas encore sur Drive — touche pour réessayer');if(raise)throw e}
 }
 
 /* ---------- navigation ---------- */
@@ -606,7 +571,7 @@ function renderAll(){
   renderYear();renderHist();setTitle();
 }
 renderAll();
-if(SET.connected&&clientId())connect(false);
+if(SET.connected&&ready())connect();
 </script>
 </body>
 </html>
