@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f3f1ff">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Mes salaires</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%234c3bc9'/%3E%3Ccircle cx='50' cy='50' r='26' fill='none' stroke='%23ffffff' stroke-width='12' stroke-dasharray='120 44'/%3E%3Ccircle cx='50' cy='50' r='26' fill='none' stroke='%23ffb168' stroke-width='12' stroke-dasharray='14 150' stroke-dashoffset='-124'/%3E%3C/svg%3E">
+<title>Salaires &amp; Impôts</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%231b1640'/%3E%3Cg transform='translate%2850 50%29 scale%280.82%29 translate%28-50 -50%29'%3E%3Crect x='22' y='58' width='14' height='22' rx='4' fill='%236f62d9'/%3E%3Crect x='43' y='46' width='14' height='34' rx='4' fill='%239c92e6'/%3E%3Crect x='64' y='32' width='14' height='48' rx='4' fill='%23ffffff'/%3E%3Cpolyline points='22%2C44 43%2C34 60%2C26 78%2C16' fill='none' stroke='%23ffb168' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='78' cy='16' r='5' fill='%23ffb168'/%3E%3C/g%3E%3C/svg%3E%0A">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -133,7 +133,7 @@ code{background:#fff;padding:1px 5px;border-radius:5px;font-size:12px}
 <header>
   <div>
     <div class="hello" id="hello">Bonjour</div>
-    <h1 id="htitle">Mes salaires</h1>
+    <h1 id="htitle">Salaires &amp; Impôts</h1>
   </div>
   <div class="hbtns">
     <button class="ib" id="eye" aria-label="Masquer les montants"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
@@ -564,7 +564,7 @@ document.querySelectorAll('nav button[data-v]').forEach(b=>b.onclick=()=>{
 $('#addBtn').onclick=()=>openForm();
 $('#eye').onclick=()=>{hidden=!hidden;document.body.classList.toggle('hide',hidden)};
 document.querySelectorAll('.modal').forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove('on')});
-function setTitle(){$('#htitle').textContent=view==='hist'?'Historique':(years().length&&sel?'Ton année '+sel:'Mes salaires')}
+function setTitle(){$('#htitle').textContent=view==='hist'?'Historique':(years().length&&sel?'Ton année '+sel:'Salaires & Impôts')}
 
 function renderAll(){
   const d=data();
