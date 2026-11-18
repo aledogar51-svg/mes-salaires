@@ -1,6 +1,6 @@
 {
   "name": "Salaires & Impôts",
-  "short_name": "Salaires & Impôts",
+  "short_name": "Salaires",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
