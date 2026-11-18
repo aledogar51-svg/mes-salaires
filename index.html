@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f3f1ff">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Mes salaires</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%234c3bc9'/%3E%3Ccircle cx='50' cy='50' r='26' fill='none' stroke='%23ffffff' stroke-width='12' stroke-dasharray='120 44'/%3E%3Ccircle cx='50' cy='50' r='26' fill='none' stroke='%23ffb168' stroke-width='12' stroke-dasharray='14 150' stroke-dashoffset='-124'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+/* ============================================================
+   Mes salaires — appli sans aucune donnée.
+   Les chiffres sont dans un fichier « mes-salaires.json » sur ton Google Drive.
+   ============================================================ */
+:root{
+  --bg:#f3f1ff;--ink:#1b1640;--mut:#554e80;--line:#e4e0fa;--card:#fff;
+  --vio:#4c3bc9;--vio2:#e8e4ff;--ora:#e8740c;--oraT:#b45309;--ora2:#ffe6cc;
+  --tea:#a9dcd3;--teaT:#0f766e;--tea2:#d5f0eb;--r:20px;
+  --head:'Space Grotesk',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:15px;
+  padding:env(safe-area-inset-top) 0 calc(96px + env(safe-area-inset-bottom));min-height:100vh}
+button{font-family:inherit;cursor:pointer}
+header{display:flex;justify-content:space-between;align-items:flex-start;padding:20px 20px 0}
+.hello{font-size:13px;color:var(--mut)}
+h1{font-family:var(--head);font-size:26px;font-weight:700}
+.hbtns{display:flex;gap:8px}
+.ib{width:44px;height:44px;border-radius:14px;border:1px solid var(--line);background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center}
+.ib svg{width:20px;height:20px}
+.sync{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--mut);margin:8px 20px 0;background:#fff;border:1px solid var(--line);
+  padding:5px 10px;border-radius:20px}
+.sync i{width:8px;height:8px;border-radius:50%;background:#a8a3c7}
+.sync.ok i{background:#0f9d6e}.sync.busy i{background:var(--ora)}.sync.err i{background:#c81e1e}
+.view{display:none}.view.on{display:block}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:14px 20px 2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;min-height:40px;padding:0 14px;border-radius:20px;border:1px solid #d6d0f5;background:#fff;color:var(--mut);font-weight:600;font-size:13px}
+.chip.on{background:var(--vio);border-color:var(--vio);color:#fff;font-weight:700}
+.card{background:var(--card);border-radius:var(--r);padding:16px;margin:12px 16px 0}
+.donutcard{display:flex;align-items:center;gap:16px;border-radius:24px;padding:18px}
+.donut{position:relative;width:160px;height:160px;flex-shrink:0}
+.donut .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.donut .c small{font-size:11px;color:var(--mut)}
+.donut .c b{font-family:var(--head);font-size:23px;font-weight:700}
+.leg{display:flex;flex-direction:column;gap:11px;font-size:12px;min-width:0}
+.leg span{color:var(--mut);display:block}
+.leg b{font-size:15px;font-weight:700}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 16px 0}
+.tile{border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:3px}
+.tile .l{font-size:12px}
+.tile .v{font-family:var(--head);font-size:25px;font-weight:700;font-variant-numeric:tabular-nums}
+.tile.v1{background:var(--vio);color:#fff}.tile.v1 .l{color:#ddd8ff}
+.tile.v1.neg{background:#8a3b07}.tile.v1.neg .l{color:#ffe0c7}
+.tile.v2{background:var(--ora2);color:#5a2a00}
+.facts{margin:12px 16px 0;display:flex;flex-direction:column;gap:8px}
+.fact{background:#fff;border-radius:16px;padding:12px 14px;display:flex;align-items:center;gap:12px}
+.fact .ic{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.fact .ic svg{width:18px;height:18px}
+.fact b{display:block;font-size:14px}
+.fact span{font-size:12px;color:var(--mut)}
+.ic.vio{background:var(--vio2);color:var(--vio)}.ic.ora{background:var(--ora2);color:var(--oraT)}.ic.tea{background:var(--tea2);color:var(--teaT)}
+.rows .row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #f0eefb;font-size:14px}
+.rows .row:last-child{border:0}
+.rows .row span:first-child{color:var(--mut)}
+.num{font-variant-numeric:tabular-nums;font-weight:600}
+.ttl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:700;margin-bottom:10px}
+.ycard{background:#fff;border-radius:18px;padding:14px;margin:10px 16px 0;display:block;width:calc(100% - 32px);text-align:left;border:0;color:var(--ink)}
+.ycard .top{display:flex;justify-content:space-between;align-items:center}
+.ycard .y{font-family:var(--head);font-size:21px;font-weight:700}
+.ycard .y small{font-family:Inter;font-size:12px;color:var(--mut);font-weight:500}
+.ycard .sub{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--mut);margin-top:6px}
+.ycard .sub b{color:var(--ink)}
+.ycard .note{font-size:12px;color:var(--mut);margin-top:6px;font-style:italic}
+.pill{font-size:12px;font-weight:700;padding:4px 9px;border-radius:9px}
+.pill.up{background:var(--vio2);color:var(--vio)}.pill.down{background:var(--ora2);color:var(--oraT)}.pill.eq{background:#f0eefb;color:var(--mut)}
+nav{position:fixed;left:16px;right:16px;bottom:calc(14px + env(safe-area-inset-bottom));background:var(--ink);border-radius:22px;display:flex;padding:6px;gap:4px;z-index:5;
+  box-shadow:0 10px 30px #1b164040}
+nav button{flex:1;min-height:50px;border:0;border-radius:16px;background:none;color:#c9c3ee;font-weight:600;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px}
+nav button.on{background:var(--vio);color:#fff;font-weight:700}
+nav svg{width:17px;height:17px}
+.empty{text-align:center;padding:50px 28px;color:var(--mut)}
+.empty h2{font-family:var(--head);color:var(--ink);font-size:22px;margin-bottom:8px}
+.empty p{line-height:1.5}
+.btn{display:block;width:100%;min-height:50px;border-radius:16px;border:0;font-size:15px;font-weight:700;margin-top:10px}
+.btn.p{background:var(--vio);color:#fff}
+.btn.s{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn.d{background:#fde8e8;color:#9b1c1c}
+.banner{margin:12px 16px 0;background:var(--ora2);color:#5a2a00;border-radius:14px;padding:10px 14px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.banner button{border:0;background:#fff;border-radius:10px;padding:8px 12px;font-weight:700;color:#5a2a00;min-height:36px}
+/* feuille */
+.modal{position:fixed;inset:0;background:#1b164080;display:none;align-items:flex-end;z-index:20}
+.modal.on{display:flex}
+.sheet{background:var(--bg);width:100%;max-height:93vh;overflow:auto;border-radius:26px 26px 0 0;padding:20px 18px calc(22px + env(safe-area-inset-bottom))}
+.sheet h3{font-family:var(--head);font-size:22px;margin-bottom:6px}
+label{display:block;font-size:13px;color:var(--mut);margin:12px 0 5px;font-weight:600}
+label small{font-weight:400}
+input,textarea{width:100%;background:#fff;border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:13px;font-size:16px;font-family:inherit}
+input:focus,textarea:focus{outline:2px solid var(--vio);border-color:transparent}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.prev{background:#fff;border-radius:14px;padding:12px;margin-top:14px;font-size:13px;color:var(--mut);line-height:1.65}
+.prev b{color:var(--ink)}
+.tip{font-size:12px;color:var(--mut);line-height:1.5;margin-top:10px}
+.hide .num,.hide .v,.hide .donut .c b,.hide .leg b,.hide .amt,.hide .ycard .sub b,.hide .fact span,.hide .mcell b,.hide .ytable td{filter:blur(7px)}
+.mgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+.mcell{background:#f6f5ff;border:1px solid #ebe8fb;border-radius:14px;padding:9px 10px;text-align:left;color:var(--ink);min-height:56px;display:flex;flex-direction:column;gap:2px}
+.mcell small{font-size:11px;color:var(--mut);font-weight:600}
+.mcell b{font-size:14px;font-variant-numeric:tabular-nums}
+.mcell.pr{background:var(--tea2);border-color:#bfe5dd}
+.mcell.pr small{color:var(--teaT)}
+.mcell.empty b{color:#a8a3c7;font-weight:500}
+.dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.legrow{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin-top:8px}
+select{width:100%;background:#fff;border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:13px;font-size:16px;font-family:inherit}
+.tauxrow{display:flex;align-items:center;gap:10px;margin-top:8px}
+.tauxrow span{width:52px;font-weight:700}
+.tauxrow input{flex:1}
+.ytable{width:100%;border-collapse:collapse;font-size:13px}
+.ytable th{font-size:11px;color:var(--mut);font-weight:600;text-align:right;padding:6px 4px}
+.ytable th:first-child,.ytable td:first-child{text-align:left}
+.ytable td{padding:9px 4px;border-top:1px solid #f0eefb;text-align:right;font-variant-numeric:tabular-nums}
+.ytable td:first-child{font-weight:700}
+
+code{background:#fff;padding:1px 5px;border-radius:5px;font-size:12px}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="hello" id="hello">Bonjour</div>
+    <h1 id="htitle">Mes salaires</h1>
+  </div>
+  <div class="hbtns">
+    <button class="ib" id="eye" aria-label="Masquer les montants"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+    <button class="ib" id="gear" aria-label="Réglages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </div>
+</header>
+<button class="sync" id="sync" style="border:1px solid var(--line)"><i></i><span>Drive non connecté</span></button>
+<div id="demoBanner"></div>
+
+<section class="view on" id="v-year"></section>
+<section class="view" id="v-hist"></section>
+
+<nav>
+  <button class="on" data-v="year"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6 5"/></svg>Mon année</button>
+  <button data-v="hist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Historique</button>
+  <button id="addBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Ajouter</button>
+</nav>
+
+<!-- Saisie d'un mois -->
+<div class="modal" id="mForm"><div class="sheet">
+  <h3 id="f-title">Saisir un mois</h3>
+  <label for="f-month">Mois</label>
+  <input id="f-month" type="month">
+  <label for="f-net">Net avant impôt (€)</label>
+  <input id="f-net" type="number" inputmode="decimal" step="0.01">
+  <label for="f-imp">Impôt prélevé à la source (€) <small>— facultatif si tu as saisi le taux de l'année</small></label>
+  <input id="f-imp" type="number" inputmode="decimal" step="0.01">
+  <label for="f-brut">Brut (€) <small>— facultatif</small></label>
+  <input id="f-brut" type="number" inputmode="decimal" step="0.01">
+  <label for="f-prime">Ce mois contient une prime ?</label>
+  <select id="f-prime">
+    <option value="auto">Détection automatique</option>
+    <option value="oui">Oui (13ᵉ mois, prime, intéressement…)</option>
+    <option value="non">Non, mois normal</option>
+  </select>
+  <label for="f-note">Note <small>— facultatif</small></label>
+  <input id="f-note" placeholder="Prime d'intéressement, augmentation…">
+  <div class="prev" id="f-prev"></div>
+  <button class="btn p" id="f-save">Enregistrer</button>
+  <button class="btn d" id="f-del">Supprimer ce mois</button>
+  <button class="btn s" id="f-cancel">Annuler</button>
+  <p class="tip">Le « net à payer avant impôt » est en bas de ta fiche de paie.</p>
+</div></div>
+
+<!-- Réglages -->
+<div class="modal" id="mSet"><div class="sheet">
+  <h3>Réglages</h3>
+  <div class="card" style="margin:12px 0 0">
+    <div class="ttl">Google Drive</div>
+    <p class="tip" style="margin-top:0" id="driveTxt"></p>
+    <label for="s-client">Identifiant client Google (Client ID)</label>
+    <input id="s-client" placeholder="xxxx.apps.googleusercontent.com" autocomplete="off">
+    <button class="btn p" id="s-connect">Connecter mon Drive</button>
+    <button class="btn s" id="s-disconnect">Déconnecter</button>
+  </div>
+  <div class="card" style="margin:12px 0 0">
+    <div class="ttl">Taux de prélèvement à la source</div>
+    <p class="tip" style="margin-top:0">Indique ton taux pour chaque année (en %). Il sert à calculer l'impôt des mois où tu n'as pas saisi le montant exact.</p>
+    <div id="s-taux"></div>
+  </div>
+  <div class="card" style="margin:12px 0 0">
+    <div class="ttl">Entreprise</div>
+    <label for="s-company">Nom</label><input id="s-company" placeholder="Ma boîte">
+    <label for="s-start">Date d'arrivée</label><input id="s-start" type="month">
+    <label for="s-name">Ton prénom <small>— pour le « Bonjour »</small></label><input id="s-name">
+  </div>
+  <div class="card" style="margin:12px 0 0">
+    <div class="ttl">Sauvegarde</div>
+    <button class="btn s" id="s-exp">Exporter (.json)</button>
+    <button class="btn s" id="s-imp">Importer un fichier .json</button>
+    <input type="file" id="s-file" accept=".json,application/json" hidden>
+    <button class="btn s" id="s-demo">Voir la démo</button>
+    <button class="btn d" id="s-reset">Effacer les données de ce téléphone</button>
+    <p class="tip">« Effacer » ne touche pas au fichier sur ton Drive.</p>
+  </div>
+  <button class="btn s" id="s-close">Fermer</button>
+</div></div>
+
+<script>
+/* ============================================================
+   CONFIG — colle ton Client ID ici, ou dans Réglages.
+   (Ce n'est pas un secret : sans ta connexion Google il ne donne accès à rien.)
+   ============================================================ */
+const CLIENT_ID = '';
+const FILE_NAME = 'mes-salaires.json';
+const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const PRIME_SEUIL = 1.3;   // un mois > 130 % du mois médian de l'année = mois avec prime
+
+const LKEY='mes-salaires-v2', SKEY='mes-salaires-settings';
+const MOIS=['Janv','Févr','Mars','Avr','Mai','Juin','Juil','Août','Sept','Oct','Nov','Déc'];
+const MOISL=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const EMPTY=()=>({v:2,company:'',start:'',name:'',months:{},taux:{},updated:0});
+let DB=norm(ls(LKEY));
+let SET=ls(SKEY)||{clientId:'',connected:false,fileId:''};
+let DEMO=null, sel=null, editing=null, hidden=false;
+let token=null, tokenExp=0, pushTimer=null;
+
+function ls(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+function norm(d){d={...EMPTY(),...(d||{})};d.months=d.months||{};d.taux=d.taux||{};return d}
+const $=s=>document.querySelector(s);
+const data=()=>DEMO||DB;
+const clientId=()=>(CLIENT_ID||SET.clientId||'').trim();
+const key=(y,m)=>y+'-'+String(m).padStart(2,'0');
+
+/* ---------- format ---------- */
+const eur=(v,d=0)=>isFinite(v)?v.toLocaleString('fr-FR',{maximumFractionDigits:d,minimumFractionDigits:d})+' €':'—';
+const pct=(v,d=1)=>isFinite(v)?(v*100).toLocaleString('fr-FR',{maximumFractionDigits:d,minimumFractionDigits:d})+' %':'—';
+const sgn=(v,d=1)=>isFinite(v)?(v>0.00005?'+':v<-0.00005?'−':'')+pct(Math.abs(v),d):'—';
+const seur=v=>isFinite(v)?(v>0?'+':v<0?'−':'')+eur(Math.abs(v)):'—';
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const median=a=>{const s=[...a].sort((x,y)=>x-y),n=s.length;return n?(n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2):NaN};
+
+/* ---------- calculs ---------- */
+function years(){const d=data();return [...new Set(Object.keys(d.months).map(k=>+k.slice(0,4)))].sort()}
+function yearStats(y){
+  const d=data(),t=+d.taux[y];
+  const list=[];for(let m=1;m<=12;m++){const e=d.months[key(y,m)];if(e&&+e.net)list.push({m,...e,net:+e.net})}
+  const med=median(list.map(e=>e.net));
+  list.forEach(e=>{e.isPrime=e.prime===true||(e.prime==null&&list.length>=3&&e.net>PRIME_SEUIL*med);
+    e.impV=e.imp!=null&&e.imp!==''?+e.imp:(isFinite(t)&&t>0?e.net*t/100:NaN)});
+  const normal=list.filter(e=>!e.isPrime);
+  const hab=normal.length?normal.reduce((a,e)=>a+e.net,0)/normal.length:median(list.map(e=>e.net));
+  const total=list.reduce((a,e)=>a+e.net,0);
+  const primes=list.filter(e=>e.isPrime).reduce((a,e)=>a+Math.max(0,e.net-hab),0);
+  const impKnown=list.length&&list.every(e=>isFinite(e.impV));
+  const imp=impKnown?list.reduce((a,e)=>a+e.impV,0):NaN;
+  const brutList=list.filter(e=>+e.brut);
+  const brut=brutList.length===list.length&&list.length?brutList.reduce((a,e)=>a+ +e.brut,0):NaN;
+  const cot=isFinite(brut)?brut-total:NaN;
+  return {year:y,list,n:list.length,byM:Object.fromEntries(list.map(e=>[e.m,e])),total,hab,primes,
+    imp,taux:impKnown&&total?imp/total:NaN,apres:total-(isFinite(imp)?imp:0),brut,cot,joursImp:impKnown&&total?imp/total*365:NaN};
+}
+function allStats(){
+  const ys=years().map(yearStats);
+  ys.forEach((s,i)=>{const p=ys[i-1];if(!p)return;s.prev=p;
+    const common=s.list.filter(e=>p.byM[e.m]).map(e=>e.m);
+    s.common=common;s.cur=common.reduce((a,m)=>a+s.byM[m].net,0);s.old=common.reduce((a,m)=>a+p.byM[m].net,0);
+    s.evSame=s.old?s.cur/s.old-1:NaN;s.evHab=p.hab?s.hab/p.hab-1:NaN;s.dHab=s.hab-p.hab;s.evTotal=s.n===12&&p.n===12?s.total/p.total-1:NaN});
+  return ys;
+}
+function periode(ms){if(!ms.length)return'';const a=Math.min(...ms),b=Math.max(...ms);return ms.length===12?"sur l'année":a===b?'en '+MOISL[a-1]:'de '+MOISL[a-1]+' à '+MOISL[b-1]}
+
+/* ---------- icônes ---------- */
+const I={
+  up:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
+  down:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 7l6 6 4-4 8 8"/><path d="M15 17h6v-6"/></svg>',
+  doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+  gift:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 8v13M3 12h18M12 8c-2-4-6-4-6-1.5S9 8 12 8zm0 0c2-4 6-4 6-1.5S15 8 12 8z"/></svg>',
+  cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+};
+
+/* ---------- vue « Mon année » ---------- */
+function renderYear(){
+  const all=allStats(),el=$('#v-year'),d=data();
+  if(!all.length){
+    el.innerHTML=`<div class="empty"><h2>Pas encore de salaire</h2>
+      <p>${SET.connected?'Ton fichier Drive est vide. Saisis ton premier mois.':'Connecte ton Drive dans les réglages pour retrouver tes données, ou saisis un mois.'}</p>
+      <button class="btn p" onclick="openForm()">Saisir un mois</button>
+      ${SET.connected?'':'<button class="btn s" onclick="openSet()">Connecter mon Drive</button>'}
+      <button class="btn s" onclick="startDemo()">Voir la démo</button></div>`;return;
+  }
+  if(!all.some(s=>s.year===sel))sel=all[all.length-1].year;
+  const s=all.find(x=>x.year===sel),first=all[0];
+  const hasImp=isFinite(s.imp);
+
+  // anneau : salaire habituel / primes / impôt
+  const R=62,C=2*Math.PI*R,g=2;
+  const habNet=s.total-s.primes-(hasImp?s.imp*(1-s.primes/s.total):0);
+  const primNet=s.primes-(hasImp?s.imp*(s.primes/s.total):0);
+  const parts=hasImp?[[habNet,'#4c3bc9'],[primNet,'#2bb3a0'],[s.imp,'#e8740c']]:[[s.total-s.primes,'#4c3bc9'],[s.primes,'#2bb3a0']];
+  let off=0,arcs='';parts.forEach(([v,c])=>{const L=v/s.total*C;if(L>0.5){arcs+=`<circle cx="80" cy="80" r="${R}" fill="none" stroke="${c}" stroke-width="22" stroke-dasharray="${Math.max(L-g,0.5)} ${C}" stroke-dashoffset="${-off}"/>`;off+=L}});
+
+  const neg=s.prev&&s.evSame<0;
+  const best=all.filter(x=>x.n>=3).reduce((a,b)=>b.hab>a.hab?b:a,all[0]);
+  const fullYears=all.filter(x=>x.n===12);
+  const totPrimes=all.reduce((a,x)=>a+x.primes,0);
+  const anc=ancien(d.start);
+
+  el.innerHTML=`
+  <div class="chips">${all.map(x=>`<button class="chip ${x.year===sel?'on':''}" onclick="pick(${x.year})">${x.year}</button>`).join('')}</div>
+  <div class="card donutcard">
+    <div class="donut">
+      <svg role="img" aria-label="Répartition du net ${s.year}" width="160" height="160" viewBox="0 0 160 160"><circle cx="80" cy="80" r="${R}" fill="none" stroke="#f0eefb" stroke-width="22"/><g transform="rotate(-90 80 80)">${arcs}</g></svg>
+      <div class="c"><small>salaire habituel</small><b>${eur(s.hab)}</b><small>net / mois</small></div>
+    </div>
+    <div class="leg">
+      <div><span>Net ${s.n<12?periode(s.list.map(e=>e.m)):"de l'année"}</span><b>${eur(s.total)}</b></div>
+      <div><span>Dont primes</span><b style="color:var(--teaT)">${eur(s.primes)}</b></div>
+      ${hasImp?`<div><span>Impôt</span><b style="color:var(--oraT)">${eur(s.imp)}</b></div>`:`<div><span>Impôt</span><button onclick="openSet()" style="border:0;background:var(--ora2);color:#5a2a00;border-radius:10px;padding:6px 10px;font-weight:700;font-size:12px;margin-top:3px">Ajouter le taux</button></div>`}
+    </div>
+  </div>
+  <div class="tiles">
+    <div class="tile v1 ${neg?'neg':''}">
+      <span class="l">${s.prev?'Vs '+s.prev.year+' · mêmes mois':'Première année'}</span>
+      <span class="v">${s.prev?sgn(s.evSame):s.n+' mois'}</span>
+      <span class="l amt">${s.prev?seur(s.cur-s.old)+' '+periode(s.common):'depuis ton arrivée'}</span>
+    </div>
+    <div class="tile v2">
+      ${hasImp?`<span class="l">Pour payer l'impôt</span><span class="v">${Math.round(s.joursImp)} jours</span><span class="l">de travail · taux ${pct(s.taux)}</span>`:
+      `<span class="l">Salaire habituel</span><span class="v">${s.prev?sgn(s.evHab):eur(s.hab)}</span><span class="l amt">${s.prev?seur(s.dHab)+'/mois vs '+s.prev.year:'net par mois'}</span>`}
+    </div>
+  </div>
+  <div class="card">
+    <div class="ttl">${s.year} mois par mois</div>
+    ${monthChart(s)}
+    <div class="legrow"><span><i class="dot" style="background:#4c3bc9"></i>Mois normal</span><span><i class="dot" style="background:#2bb3a0"></i>Avec prime</span>${s.prev?`<span><i class="dot" style="background:#c9c3ee"></i>${s.prev.year}</span>`:''}</div>
+    <div class="mgrid">${MOIS.map((n,i)=>{const e=s.byM[i+1];return`<button class="mcell ${e?(e.isPrime?'pr':''):'empty'}" onclick="openForm('${key(s.year,i+1)}')"><small>${n}${e&&e.isPrime?' · prime':''}</small><b>${e?eur(e.net):'+'}</b></button>`}).join('')}</div>
+  </div>
+  <div class="card rows">
+    <div class="ttl">${s.year} en résumé</div>
+    <div class="row"><span>Net avant impôt</span><span class="num">${eur(s.total)}</span></div>
+    <div class="row"><span>Salaire habituel</span><span class="num">${eur(s.hab)}/mois</span></div>
+    <div class="row"><span>Primes et extras</span><span class="num" style="color:var(--teaT)">${eur(s.primes)}</span></div>
+    ${hasImp?`<div class="row"><span>Impôt prélevé</span><span class="num" style="color:var(--oraT)">− ${eur(s.imp)}</span></div>
+    <div class="row"><span><b style="color:var(--ink)">Dans ta poche</b></span><span class="num" style="color:var(--vio)">${eur(s.apres)}</span></div>`:''}
+    ${isFinite(s.brut)?`<div class="row"><span>Brut · cotisations</span><span class="num">${eur(s.brut)} · ${pct(s.cot/s.brut)}</span></div>`:''}
+    <div class="row"><span>Mois saisis</span><span class="num">${s.n} / 12</span></div>
+  </div>
+  <div class="facts">
+    ${anc?`<div class="fact"><div class="ic vio">${I.cal}</div><div><b>${anc} dans ${esc(d.company)||'ta boîte'}</b><span>Arrivé en ${MOISL[+d.start.slice(5)-1]} ${d.start.slice(0,4)}</span></div></div>`:''}
+    ${all.length>1?`<div class="fact"><div class="ic vio">${I.up}</div><div><b>Salaire habituel : ${sgn(all[all.length-1].hab/first.hab-1,0)} depuis ${first.year}</b><span>${eur(first.hab)} → ${eur(all[all.length-1].hab)} par mois · record en ${best.year}</span></div></div>`:''}
+    ${baisseFact(all)}
+    <div class="fact"><div class="ic tea">${I.gift}</div><div><b>${eur(totPrimes)} de primes depuis ${first.year}</b><span>${primeMonths(all)}</span></div></div>
+  </div>`;
+}
+function ancien(st){if(!st)return'';const a=new Date(st+'-01'),n=new Date();const mo=(n.getFullYear()-a.getFullYear())*12+n.getMonth()-a.getMonth();if(mo<1)return'';
+  const y=Math.floor(mo/12),m=mo%12;return(y?y+' an'+(y>1?'s':''):'')+(y&&m?' et ':'')+(m?m+' mois':'')}
+function baisseFact(all){
+  const b=all.filter(x=>x.prev&&x.evHab<-0.001);
+  if(all.length<2)return'';
+  return `<div class="fact"><div class="ic ora">${b.length?I.down:I.up}</div><div><b>${b.length?'Salaire habituel en baisse : '+b.map(x=>x.year).join(', '):'Salaire habituel jamais en baisse'}</b><span>${b.length?b.map(x=>x.year+' '+sgn(x.evHab)).join(' · '):'Il a progressé chaque année, hors primes'}</span></div></div>`;
+}
+function primeMonths(all){
+  const c={};all.forEach(s=>s.list.filter(e=>e.isPrime).forEach(e=>c[e.m]=(c[e.m]||0)+1));
+  const top=Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([m])=>MOISL[m-1]);
+  return top.length?'Elles tombent surtout en '+top.join(', '):'Aucune prime détectée';
+}
+function monthChart(s){
+  const W=330,H=170,top=10,bot=20,left=4,ch=H-top-bot,step=(W-left)/12,bw=step-6;
+  const cur=Math.max(...s.list.map(e=>e.net));
+  const max=Math.max(cur,s.prev?Math.min(Math.max(...s.prev.list.map(e=>e.net)),cur*1.25,s.hab*2.2):0)*1.05||1;
+  let svg=`<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Net mensuel ${s.year}"><line x1="0" x2="${W}" y1="${top+ch}" y2="${top+ch}" stroke="#e4e0fa"/>`;
+  for(let m=1;m<=12;m++){const x=left+(m-1)*step,e=s.byM[m],p=s.prev&&s.prev.byM[m];
+    if(e){const h=e.net/max*ch;svg+=`<rect x="${x}" y="${top+ch-h}" width="${bw}" height="${h}" rx="5" fill="${e.isPrime?'#2bb3a0':'#4c3bc9'}"><title>${MOIS[m-1]} ${s.year} : ${eur(e.net)}</title></rect>`}
+    if(p){const yy=Math.max(top+2,top+ch-p.net/max*ch);svg+=`<line x1="${x-1}" x2="${x+bw+1}" y1="${yy}" y2="${yy}" stroke="#c9c3ee" stroke-width="3" stroke-linecap="round"/>`}
+    svg+=`<text x="${x+bw/2}" y="${H-5}" font-size="9" fill="#554e80" text-anchor="middle">${MOIS[m-1].slice(0,1)}</text>`}
+  return svg+'</svg>';
+}
+function pick(y){sel=y;renderYear();$('#htitle').textContent='Ton année '+y}
+
+/* ---------- vue « Historique » ---------- */
+function renderHist(){
+  const all=allStats(),el=$('#v-hist');
+  if(!all.length){el.innerHTML='<div class="empty"><h2>Historique vide</h2><p>Saisis un mois avec le bouton « Ajouter ».</p></div>';return}
+  const tot=all.reduce((a,s)=>({net:a.net+s.total,primes:a.primes+s.primes,imp:a.imp+(isFinite(s.imp)?s.imp:0),impOk:a.impOk&&isFinite(s.imp)}),{net:0,primes:0,imp:0,impOk:true});
+  const first=all[0];
+  el.innerHTML=`
+  <div class="card" style="margin-top:14px"><div class="ttl">Net par année</div>${yearChart(all)}
+    <div class="legrow"><span><i class="dot" style="background:#4c3bc9"></i>Salaire habituel</span><span><i class="dot" style="background:#2bb3a0"></i>Primes</span><span>* année incomplète</span></div></div>
+  <div class="card"><div class="ttl">Salaire habituel · net par mois</div>${habChart(all)}</div>
+  <div class="card"><div class="ttl">Année par année</div>
+    <table class="ytable"><thead><tr><th>Année</th><th>Net</th><th>Habituel</th><th>Vs N−1*</th></tr></thead><tbody>
+    ${all.slice().reverse().map(s=>`<tr><td>${s.year}${s.n<12?` <small style="color:var(--mut);font-weight:500">${s.n} m</small>`:''}</td><td>${eur(s.total)}</td><td>${eur(s.hab)}</td>
+      <td style="color:${!s.prev?'var(--mut)':s.evSame<0?'var(--oraT)':'var(--vio)'};font-weight:700">${s.prev?sgn(s.evSame):'—'}</td></tr>`).join('')}
+    </tbody></table>
+    <p class="tip">* comparé aux mêmes mois de l'année précédente, pour qu'une année en cours ou incomplète ne fausse rien.</p></div>
+  <div class="card rows">
+    <div class="ttl">Depuis ${first.year}</div>
+    <div class="row"><span>Net avant impôt cumulé</span><span class="num">${eur(tot.net)}</span></div>
+    <div class="row"><span>Dont primes</span><span class="num" style="color:var(--teaT)">${eur(tot.primes)}</span></div>
+    <div class="row"><span>Impôts payés</span><span class="num" style="color:var(--oraT)">${tot.impOk?eur(tot.imp):'taux à compléter'}</span></div>
+  </div>
+  <p class="tip" style="text-align:center;margin:14px 24px">Le salaire habituel est la moyenne des mois sans prime. Un mois est compté « avec prime » s'il dépasse de 30 % le mois médian de l'année ; tu peux corriger mois par mois.</p>`;
+}
+function axisMax(v){if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v)));const n=v/p;return(n<=1?1:n<=2?2:n<=4?4:n<=6?6:n<=8?8:10)*p}
+function yearChart(all){
+  const W=330,H=190,top=22,bot=22,left=34,ch=H-top-bot,n=all.length,gap=n>7?6:12,bw=Math.min(44,(W-left-4)/n-gap);
+  const max=axisMax(Math.max(...all.map(s=>s.total))*1.1);
+  let s=`<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Net par année">`;
+  for(let i=0;i<=4;i++){const yy=top+ch*(1-i/4);s+=`<line x1="${left}" x2="${W}" y1="${yy}" y2="${yy}" stroke="#f0eefb"/><text class="amt" x="${left-5}" y="${yy+3}" font-size="9" fill="#554e80" text-anchor="end">${Math.round(max*i/4/1000)}k</text>`}
+  all.forEach((y,i)=>{const x=left+6+i*(bw+gap),hT=y.total/max*ch,hP=y.primes/max*ch,hH=hT-hP;
+    s+=`<rect x="${x}" y="${top+ch-hH}" width="${bw}" height="${hH}" rx="5" fill="#4c3bc9" opacity="${y.n<12?0.55:1}"/>`;
+    if(hP>1)s+=`<rect x="${x}" y="${top+ch-hT}" width="${bw}" height="${hP-1.5}" rx="5" fill="#2bb3a0" opacity="${y.n<12?0.55:1}"/>`;
+    s+=`<text class="amt" x="${x+bw/2}" y="${top+ch-hT-5}" font-size="9" font-weight="700" fill="#1b1640" text-anchor="middle">${Math.round(y.total/1000)}k</text>`;
+    s+=`<text x="${x+bw/2}" y="${H-6}" font-size="10" fill="#554e80" text-anchor="middle">${y.year}${y.n<12?'*':''}</text>`});
+  return s+'</svg>';
+}
+function habChart(all){
+  const v=all.filter(s=>s.n>=2);if(!v.length)return'';
+  const W=330,H=160,top=24,bot=22,left=38,ch=H-top-bot,n=v.length,step=n>1?(W-left-30)/(n-1):0;
+  const lo=Math.min(...v.map(s=>s.hab)),hi=Math.max(...v.map(s=>s.hab));
+  const mn=Math.floor(lo*0.92/100)*100,mx=Math.ceil(hi*1.04/100)*100;
+  const X=i=>left+15+i*step,Y=t=>top+ch*(1-(t-mn)/(mx-mn||1));
+  let s=`<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Salaire habituel par année">`;
+  for(let i=0;i<=3;i++){const t=mn+(mx-mn)*i/3;s+=`<line x1="${left}" x2="${W}" y1="${Y(t)}" y2="${Y(t)}" stroke="#f0eefb"/><text class="amt" x="${left-5}" y="${Y(t)+3}" font-size="9" fill="#554e80" text-anchor="end">${(t/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})}k</text>`}
+  s+=`<polyline fill="none" stroke="#4c3bc9" stroke-width="2.5" stroke-linejoin="round" points="${v.map((x,i)=>X(i)+','+Y(x.hab)).join(' ')}"/>`;
+  v.forEach((x,i)=>{const dn=x.prev&&x.evHab<-0.001;
+    s+=`<circle cx="${X(i)}" cy="${Y(x.hab)}" r="4.5" fill="#fff" stroke="${dn?'#e8740c':'#4c3bc9'}" stroke-width="2.5"/>
+    <text class="amt" x="${X(i)}" y="${Y(x.hab)-10}" font-size="9" fill="#1b1640" text-anchor="middle">${eur(x.hab)}</text>
+    <text x="${X(i)}" y="${H-6}" font-size="10" fill="#554e80" text-anchor="middle">${x.year}${x.n<12?'*':''}</text>`});
+  return s+'</svg>';
+}
+
+/* ---------- saisie d'un mois ---------- */
+const F=k=>$('#f-'+k);
+function nextMonth(){const ks=Object.keys(DB.months).sort();if(!ks.length)return DB.start||new Date().toISOString().slice(0,7);
+  const [y,m]=ks[ks.length-1].split('-').map(Number);return m===12?key(y+1,1):key(y,m+1)}
+function openForm(k){
+  if(DEMO)return alert('Quitte la démo pour saisir tes vraies données.');
+  const e=k&&DB.months[k];editing=e?k:null;
+  F('title').textContent=e?'Modifier '+MOISL[+k.slice(5)-1]+' '+k.slice(0,4):'Saisir un mois';
+  F('month').value=k||nextMonth();
+  F('net').value=e?e.net:'';F('imp').value=e&&e.imp!=null?e.imp:'';F('brut').value=e&&e.brut?e.brut:'';F('note').value=e&&e.note||'';
+  F('prime').value=!e||e.prime==null?'auto':e.prime?'oui':'non';
+  F('del').style.display=e?'block':'none';preview();$('#mForm').classList.add('on');
+}
+function preview(){
+  const net=+F('net').value,y=(F('month').value||'').slice(0,4),t=+data().taux[y];
+  const imp=F('imp').value!==''?+F('imp').value:(t?net*t/100:NaN);
+  F('prev').innerHTML=net?(isFinite(imp)?`Impôt : <b>${eur(imp,2)}</b>${F('imp').value===''?' (taux '+t+' %)':''} · Dans ta poche : <b>${eur(net-imp,2)}</b>`:'Impôt non renseigné : il sera calculé dès que tu auras saisi le taux de '+y+' dans les réglages.'):'Saisis le net avant impôt.';
+}
+['net','imp','month'].forEach(k=>F(k).addEventListener('input',preview));
+F('save').onclick=()=>{
+  const k=F('month').value,net=+F('net').value;
+  if(!/^\d{4}-\d{2}$/.test(k))return alert('Choisis un mois');
+  if(!net)return alert('Le net avant impôt est obligatoire');
+  if(k!==editing&&DB.months[k]&&!confirm('Ce mois existe déjà. Le remplacer ?'))return;
+  if(editing&&editing!==k)delete DB.months[editing];
+  const p=F('prime').value;
+  const e={net};if(F('imp').value!=='')e.imp=+F('imp').value;if(+F('brut').value)e.brut=+F('brut').value;
+  if(p!=='auto')e.prime=p==='oui';if(F('note').value.trim())e.note=F('note').value.trim();
+  DB.months[k]=e;sel=+k.slice(0,4);commit();$('#mForm').classList.remove('on');
+};
+F('del').onclick=()=>{if(confirm('Supprimer ce mois ?')){delete DB.months[editing];commit();$('#mForm').classList.remove('on')}};
+F('cancel').onclick=()=>$('#mForm').classList.remove('on');
+
+/* ---------- réglages ---------- */
+function openSet(){
+  $('#s-client').value=CLIENT_ID||SET.clientId||'';$('#s-client').disabled=!!CLIENT_ID;
+  $('#s-company').value=DB.company||'';$('#s-start').value=DB.start||'';$('#s-name').value=DB.name||'';
+  $('#driveTxt').innerHTML=SET.connected?`Connecté. Tes données sont dans <code>${FILE_NAME}</code> sur ton Drive.`:
+    `Tes données seront enregistrées dans un fichier <code>${FILE_NAME}</code> sur ton Drive. L'appli ne voit que ce fichier.`;
+  $('#s-disconnect').style.display=SET.connected?'block':'none';
+  $('#s-connect').textContent=SET.connected?'Resynchroniser':'Connecter mon Drive';
+  const ys=[...new Set(Object.keys(DB.months).map(k=>k.slice(0,4)))].sort();
+  $('#s-taux').innerHTML=ys.length?ys.map(y=>`<div class="tauxrow"><span>${y}</span><input type="number" inputmode="decimal" step="0.1" placeholder="ex. 7,5" value="${DB.taux[y]??''}" data-y="${y}" aria-label="Taux ${y} en %"><span style="width:auto;font-weight:400;color:var(--mut)">%</span></div>`).join(''):'<p class="tip">Saisis d\'abord des mois.</p>';
+  $('#s-taux').querySelectorAll('input').forEach(i=>i.onchange=()=>{const v=i.value.replace(',','.');if(v==='')delete DB.taux[i.dataset.y];else DB.taux[i.dataset.y]=+v;commit()});
+  $('#mSet').classList.add('on');
+}
+$('#gear').onclick=openSet;
+$('#s-close').onclick=()=>$('#mSet').classList.remove('on');
+$('#s-client').onchange=e=>{SET.clientId=e.target.value.trim();lsSet(SKEY,SET)};
+['company','start','name'].forEach(k=>$('#s-'+k).onchange=e=>{DB[k]=e.target.value.trim();commit()});
+$('#s-connect').onclick=()=>{$('#mSet').classList.remove('on');connect(true)};
+$('#s-disconnect').onclick=()=>{
+  if(token&&window.google)google.accounts.oauth2.revoke(token,()=>{});
+  token=null;SET.connected=false;SET.fileId='';lsSet(SKEY,SET);setSync('','Drive non connecté');openSet();
+};
+$('#s-exp').onclick=()=>{const b=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});const a=document.createElement('a');
+  a.href=URL.createObjectURL(b);a.download='mes-salaires-'+new Date().toISOString().slice(0,10)+'.json';a.click()};
+$('#s-imp').onclick=()=>$('#s-file').click();
+$('#s-file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=()=>{try{const d=JSON.parse(rd.result);if(!d.months)throw 0;
+    if(Object.keys(DB.months).length&&!confirm('Remplacer tes données actuelles par ce fichier ?'))return;
+    DB=norm(d);DB.updated=Date.now();commit();$('#mSet').classList.remove('on');alert('Fichier importé')}catch(_){alert('Fichier invalide')}};rd.readAsText(f);e.target.value=''};
+$('#s-demo').onclick=()=>{$('#mSet').classList.remove('on');startDemo()};
+$('#s-reset').onclick=()=>{if(confirm('Effacer les données de ce téléphone ? (le fichier Drive est conservé)')){DB=EMPTY();lsSet(LKEY,DB);renderAll();$('#mSet').classList.remove('on')}};
+
+/* ---------- démo (jamais enregistrée) ---------- */
+function startDemo(){
+  const base={2023:2400,2024:2520,2025:2610,2026:2700},months={};
+  for(const y in base)for(let m=1;m<=12;m++){if(y==2026&&m>9)break;let v=base[y]*(1+((m*7)%5-2)/100);if(m===11)v+=base[y];if(m===6&&y>2023)v+=600;months[key(y,m)]={net:Math.round(v*100)/100}}
+  DEMO=norm({company:'Exemple SA',start:'2022-11',months,taux:{2023:3.1,2024:3.8,2025:4.5,2026:5}});
+  sel=null;renderAll();
+}
+function stopDemo(){DEMO=null;sel=null;renderAll()}
+
+/* ---------- enregistrement ---------- */
+function commit(){
+  DB.updated=Date.now();lsSet(LKEY,DB);renderAll();
+  if(SET.connected){clearTimeout(pushTimer);pushTimer=setTimeout(push,600)}
+}
+
+/* ============================================================
+   GOOGLE DRIVE
+   ============================================================ */
+function setSync(cls,txt){const s=$('#sync');s.className='sync '+cls;s.querySelector('span').textContent=txt}
+$('#sync').onclick=()=>SET.connected?connect(true):openSet();
+function waitGis(){return new Promise((ok,ko)=>{let n=0;const t=setInterval(()=>{
+  if(window.google&&google.accounts&&google.accounts.oauth2){clearInterval(t);ok()}else if(++n>100){clearInterval(t);ko(new Error('Google indisponible (hors ligne ?)'))}},100)})}
+async function getToken(interactive){
+  if(token&&Date.now()<tokenExp-60000)return token;
+  if(!clientId())throw new Error('Client ID manquant');
+  await waitGis();
+  return new Promise((ok,ko)=>{
+    const tc=google.accounts.oauth2.initTokenClient({client_id:clientId(),scope:SCOPE,
+      callback:r=>{if(r.error)return ko(new Error(r.error));token=r.access_token;tokenExp=Date.now()+(+r.expires_in||3600)*1000;ok(token)},
+      error_callback:e=>ko(new Error(e.type||'popup'))});
+    tc.requestAccessToken({prompt:interactive&&!SET.connected?'consent':''});
+  });
+}
+async function api(url,opt={},retry=true){
+  const t=await getToken(false);
+  const r=await fetch(url,{...opt,headers:{...(opt.headers||{}),Authorization:'Bearer '+t}});
+  if(r.status===401&&retry){token=null;return api(url,opt,false)}
+  if(!r.ok)throw new Error('Drive '+r.status);
+  return r;
+}
+async function findFile(){
+  if(SET.fileId){try{const r=await api(`https://www.googleapis.com/drive/v3/files/${SET.fileId}?fields=id,trashed`);const j=await r.json();if(!j.trashed)return j.id}catch(e){}}
+  const q=encodeURIComponent(`name='${FILE_NAME}' and trashed=false`);
+  const r=await api(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,modifiedTime)&orderBy=modifiedTime desc`);
+  const j=await r.json();return j.files&&j.files[0]?j.files[0].id:null;
+}
+async function createFile(obj){
+  const meta={name:FILE_NAME,mimeType:'application/json',description:"Données de l'appli Mes salaires"};
+  const b='salaires'+Date.now();
+  const body=`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(obj,null,2)}\r\n--${b}--`;
+  const r=await api('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body});
+  return (await r.json()).id;
+}
+async function connect(interactive){
+  try{
+    setSync('busy','Connexion au Drive…');
+    await getToken(interactive);
+    SET.connected=true;lsSet(SKEY,SET);
+    await pull();
+  }catch(e){
+    console.warn(e);
+    if(SET.connected)setSync('err','Drive : '+(navigator.onLine?'reconnexion nécessaire':'hors ligne')+' — touche pour réessayer');
+    else setSync('err','Connexion impossible — vérifie le Client ID');
+  }
+}
+async function pull(){
+  setSync('busy','Lecture du Drive…');
+  let id=await findFile();
+  if(!id){id=await createFile(DB);SET.fileId=id;lsSet(SKEY,SET);setSync('ok','Synchronisé avec Drive');return}
+  SET.fileId=id;lsSet(SKEY,SET);
+  const r=await api(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`);
+  let remote;try{remote=await r.json()}catch(e){remote=null}
+  remote=norm(remote);
+  if((DB.updated||0)>(remote.updated||0)&&Object.keys(DB.months).length){await push()}   // modifs locales plus récentes
+  else{DB=remote;lsSet(LKEY,DB);renderAll()}
+  setSync('ok','Synchronisé avec Drive');
+}
+async function push(){
+  try{
+    setSync('busy','Enregistrement sur Drive…');
+    if(!SET.fileId)SET.fileId=(await findFile())||await createFile(DB);
+    await api(`https://www.googleapis.com/upload/drive/v3/files/${SET.fileId}?uploadType=media`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(DB,null,2)});
+    lsSet(SKEY,SET);setSync('ok','Synchronisé avec Drive');
+  }catch(e){console.warn(e);setSync('err','Pas encore sur Drive — touche pour réessayer')}
+}
+
+/* ---------- navigation ---------- */
+let view='year';
+document.querySelectorAll('nav button[data-v]').forEach(b=>b.onclick=()=>{
+  view=b.dataset.v;
+  document.querySelectorAll('nav button[data-v]').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+view));setTitle();window.scrollTo(0,0)});
+$('#addBtn').onclick=()=>openForm();
+$('#eye').onclick=()=>{hidden=!hidden;document.body.classList.toggle('hide',hidden)};
+document.querySelectorAll('.modal').forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove('on')});
+function setTitle(){$('#htitle').textContent=view==='hist'?'Historique':(years().length&&sel?'Ton année '+sel:'Mes salaires')}
+
+function renderAll(){
+  const d=data();
+  $('#hello').textContent=(d.name?'Bonjour '+d.name:'Bonjour')+(d.company?' · '+d.company:'');
+  $('#demoBanner').innerHTML=DEMO?'<div class="banner"><span>Mode démo : chiffres fictifs, rien n\'est enregistré.</span><button onclick="stopDemo()">Quitter</button></div>':'';
+  renderYear();renderHist();setTitle();
+}
+renderAll();
+if(SET.connected&&clientId())connect(false);
+</script>
+</body>
+</html>
