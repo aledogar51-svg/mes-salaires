@@ -153,6 +153,15 @@ select{width:100%;background:#fff;border:1px solid var(--line);color:var(--ink);
 .chtable .vv{text-align:right;white-space:nowrap;font-weight:600}
 .chtable .p{width:60px;text-align:right;font-weight:700;white-space:nowrap}
 .hide .chtable .vv,.hide .chtable .p{filter:blur(8px)}
+.pyhead,.pyears{display:grid;gap:4px}
+.pyhead{font-size:11px;font-weight:700;color:var(--mut);text-align:right;padding:10px 0 4px;border-bottom:1px solid #f0eefb}
+.pblock{padding:9px 0;border-bottom:1px solid #f0eefb}
+.pblock.tot{border-bottom:0;border-top:2px solid #e4e0fa}
+.pname{font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.pname small{font-weight:500;color:var(--mut);font-size:11px}
+.pyears>div{text-align:right;font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap;line-height:1.35}
+.pyears small{display:block;font-size:11px;font-weight:700;min-height:15px}
+.hide .pyears>div{filter:blur(8px)}
 code{background:#fff;padding:1px 5px;border-radius:5px;font-size:12px}
 </style>
 </head>
@@ -589,20 +598,24 @@ function primeHist(all){
   const W=330,H=190,top=22,bot=22,left=34,ch=H-top-bot,n=ys.length,gap=n>7?6:12,bw=Math.min(44,(W-left-4)/n-gap);
   const max=axisMax(Math.max(1,...ys.map(s=>s.pbTotal))*1.1);
   let svg=`<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Primes brutes par année">`;
-  for(let i=0;i<=4;i++){const yy=top+ch*(1-i/4);svg+=`<line x1="${left}" x2="${W}" y1="${yy}" y2="${yy}" stroke="#f0eefb"/><text class="amt" x="${left-5}" y="${yy+3}" font-size="9" fill="#554e80" text-anchor="end">${(max*i/4/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})}k</text>`}
+  {const nt=nTicks(max);for(let i=0;i<=nt;i++){const yy=top+ch*(1-i/nt);svg+=`<line x1="${left}" x2="${W}" y1="${yy}" y2="${yy}" stroke="#f0eefb"/><text class="amt" x="${left-5}" y="${yy+3}" font-size="9" fill="#554e80" text-anchor="end">${(max*i/nt/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})}k</text>`}}
   ys.forEach((s,i)=>{const x=left+6+i*(bw+gap);let base=top+ch;
     types.forEach(t=>{const v=s.pb[t]?s.pb[t].brut:0;const hh=v/max*ch;if(hh>0){svg+=`<rect x="${x}" y="${base-hh}" width="${bw}" height="${Math.max(hh-1,0.5)}" fill="${pcol(t)}" opacity="${s.n<12?0.6:1}"><title>${esc(t)} ${s.year} : ${eur(v)}</title></rect>`;base-=hh}});
     svg+=`<text class="amt" x="${x+bw/2}" y="${base-5}" font-size="9" font-weight="700" fill="#1b1640" text-anchor="middle">${(s.pbTotal/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})}k</text><text x="${x+bw/2}" y="${H-6}" font-size="10" fill="#554e80" text-anchor="middle">${s.year}${s.n<12?'*':''}</text>`});
   svg+='</svg>';
+  const cols=`grid-template-columns:repeat(${show.length},minmax(0,1fr))`;
+  const ev=(v,p)=>v&&p?`<small style="color:${v<p?'var(--oraT)':'var(--vio)'}">${sgn(v/p-1,0)}</small>`:'<small></small>';
   const cell=(s,t)=>{const v=s.pb[t]?s.pb[t].brut:0,p=s.prev&&s.prev.pb[t]?s.prev.pb[t].brut:0;
-    return `<td>${v?eur(v):'—'}${v&&p?`<br><small style="font-size:11px;font-weight:700;color:${v<p?'var(--oraT)':'var(--vio)'}">${sgn(v/p-1,0)}</small>`:''}</td>`};
+    return `<div>${v?eur(v):'<span style="color:#a8a3c7">—</span>'}${ev(v,p)}</div>`};
+  const block=(name,cells,cls='',sub='',dot='')=>`<div class="pblock ${cls}"><div class="pname">${dot?`<i class="dot" style="background:${dot}"></i>`:''}${name}${sub?` <small>${sub}</small>`:''}</div><div class="pyears" style="${cols}">${cells}</div></div>`;
+  const totCells=f=>show.map(s=>{const v=f(s),p=s.prev&&s.n===12?f(s.prev):0;return `<div><b>${v?eur(v):'—'}</b>${ev(v,p)}</div>`}).join('');
   return `<div class="card"><div class="ttl">Primes par année</div>${ys.length?`<div class="ttl" style="margin:0;font-size:10px">Primes brutes</div>${svg}`:''}
    <div class="legrow">${types.map(t=>`<span><i class="dot" style="background:${pcol(t)}"></i>${esc(t)}</span>`).join('')}</div>
-   <div style="overflow-x:auto;margin-top:10px"><table class="ytable ptable"><thead><tr><th>Prime</th>${show.map(s=>`<th>${s.year}${s.n<12?'*':''}</th>`).join('')}</tr></thead><tbody>
-   ${types.map(t=>`<tr><td>${esc(t.replace(/^Prime /,''))}</td>${show.map(s=>cell(s,t)).join('')}</tr>`).join('')}
-   ${types.length?`<tr><td><b>Total brut</b></td>${show.map(s=>`<td><b>${eur(s.pbTotal)}</b></td>`).join('')}</tr>`:''}
-   ${allTypes.filter(isNet).map(t=>`<tr><td>${esc(t.replace(/^Prime /,''))} <small style="color:var(--mut);font-weight:500">net</small></td>${show.map(s=>cell(s,t)).join('')}</tr>`).join('')}
-   ${allTypes.some(isNet)?`<tr><td><b>Total net</b></td>${show.map(s=>`<td><b>${s.pnTotal?eur(s.pnTotal):'—'}</b></td>`).join('')}</tr>`:''}</tbody></table></div>
+   <div class="pyhead" style="${cols};margin-top:8px">${show.map(s=>`<span>${s.year}${s.n<12?'*':''}</span>`).join('')}</div>
+   ${types.map(t=>block(esc(t),show.map(s=>cell(s,t)).join(''),'','brut',pcol(t))).join('')}
+   ${types.length?block('<b>Total brut</b>',totCells(s=>s.pbTotal),'tot'):''}
+   ${allTypes.filter(isNet).map(t=>block(esc(t),show.map(s=>cell(s,t)).join(''),'','net','#b7791f')).join('')}
+   ${allTypes.some(isNet)?block('<b>Total net</b>',totCells(s=>s.pnTotal),'tot'):''}
    <p class="tip">Évolution calculée par rapport à l'année précédente.</p></div>`;
 }
 function ancien(st){if(!st)return'';const a=new Date(st+'-01'),n=new Date();const mo=(n.getFullYear()-a.getFullYear())*12+n.getMonth()-a.getMonth();if(mo<1)return'';
@@ -679,7 +692,8 @@ function renderHist(){
   </div>
   <p class="tip" style="text-align:center;margin:14px 24px">Le salaire hors primes est ton net mensuel sans les primes : on retire la part nette des primes saisies (estimée à 78 % du brut si le brut du mois manque). Un mois nettement plus élevé sans prime saisie est compté à part. Les comparaisons « vs N−1 » portent sur les mêmes mois, hors primes.</p>`;
 }
-function axisMax(v){if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v)));const n=v/p;return(n<=1?1:n<=2?2:n<=4?4:n<=6?6:n<=8?8:10)*p}
+function nTicks(max){const p=Math.pow(10,Math.floor(Math.log10(max)));for(const k of [4,5,3,6]){const st=max/k/p*10;if([1,2,2.5,5,10,20,25,50].some(x=>Math.abs(x-st)<1e-9))return k}return 4}
+function axisMax(v){if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v)));const n=v/p;return(n<=1?1:n<=1.5?1.5:n<=2?2:n<=2.5?2.5:n<=3?3:n<=4?4:n<=5?5:n<=6?6:n<=8?8:10)*p}
 function yearChart(all){
   const W=330,H=190,top=22,bot=22,left=34,ch=H-top-bot,n=all.length,gap=n>7?6:12,bw=Math.min(44,(W-left-4)/n-gap);
   const max=axisMax(Math.max(...all.map(s=>s.total))*1.1);
