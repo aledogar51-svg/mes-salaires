@@ -186,6 +186,7 @@ code{background:#fff;padding:1px 5px;border-radius:5px;font-size:12px}
     <select id="f-regt" style="flex:1.4"><option value="none">Aucune</option><option value="plus">Les impôts m'en ont repris</option><option value="moins">Les impôts m'ont remboursé</option></select>
     <input id="f-rega" type="number" inputmode="decimal" step="0.01" placeholder="Montant €" aria-label="Montant de la régularisation">
   </div>
+  <div class="prow" id="f-regyw"><span style="font-size:13px;color:var(--mut);flex:1.4">Concerne les revenus de</span><select id="f-regy" style="flex:1" aria-label="Année de revenus concernée"></select></div>
   <label for="f-brut">Brut (€) <small>— facultatif</small></label>
   <input id="f-brut" type="number" inputmode="decimal" step="0.01">
   <div class="two">
@@ -339,7 +340,8 @@ function yearStats(y){
   const primes=list.reduce((a,e)=>a+e.primeNet,0);
   const kn=list.filter(e=>isFinite(e.impV));
   const pas=kn.reduce((a,e)=>a+e.impV,0),impN=kn.length,netKnown=kn.reduce((a,e)=>a+e.net,0);
-  const regs=list.filter(e=>+e.regul).map(e=>({m:e.m,v:+e.regul}));
+  const regs=Object.entries(d.months).filter(([k,e])=>+e.regul&&(+e.regY||+k.slice(0,4)-1)===y).sort()
+    .map(([k,e])=>({y:+k.slice(0,4),m:+k.slice(5),v:+e.regul}));
   const regul=regs.reduce((a,r)=>a+r.v,0);
   const impKnown=list.length>0&&impN===list.length;
   const imp=impN||regs.length?pas+regul:NaN;
@@ -511,11 +513,11 @@ function impCard(s){
        <div style="font-size:11px">${s.regul>0?'repris par les impôts':s.regul<0?'remboursé':'aucune'}${p&&p.regul?' · '+p.year+' : '+(p.regul>0?'+':'−')+eur(Math.abs(p.regul)):''}</div></div>
    </div>
    ${s.zeroM.length?`<div class="row"><span>Mois sans impôt</span><span class="num">${s.zeroM.map(m=>MOIS[m-1]).join(', ')}</span></div>`:''}
-   ${s.regs.map(r=>`<div class="row"><span>${MOISL[r.m-1][0].toUpperCase()+MOISL[r.m-1].slice(1)} · ${r.v>0?'repris par les impôts':'remboursé'}</span><span class="num" style="color:${r.v>0?'var(--oraT)':'var(--vio)'}">${r.v>0?'+ ':'− '}${eur(Math.abs(r.v))}</span></div>`).join('')}
+   ${s.regs.map(r=>`<div class="row"><span>${MOISL[r.m-1][0].toUpperCase()+MOISL[r.m-1].slice(1)} ${r.y} · ${r.v>0?'repris par les impôts':'remboursé'}</span><span class="num" style="color:${r.v>0?'var(--oraT)':'var(--vio)'}">${r.v>0?'+ ':'− '}${eur(Math.abs(r.v))}</span></div>`).join('')}
    <div class="row"><span><b style="color:var(--ink)">Impôt réellement payé</b></span><span class="num" style="color:var(--oraT)">${eur(s.imp)}</span></div>
    ${s.impKnown?`<div class="row"><span>Taux réel</span><span class="num">${pct(s.taux)} du net</span></div>`:''}
    ${p?`<div class="row"><span>Vs ${p.year}</span><span class="num" style="color:${ev>0?'var(--oraT)':'var(--vio)'}">${eur(p.imp)} → ${sgn(ev)}</span></div>`:''}
-   ${s.regs.length?`<p class="tip">Les régularisations concernent en général les revenus de l'année d'avant. Elles sont comptées l'année où tu les as payées ou reçues.</p>`:''}</div>`;
+   <p class="tip">${s.regs.length?`Régularisations reçues ou payées en ${[...new Set(s.regs.map(r=>r.y))].join(', ')} pour tes revenus ${s.year} : elles sont comptées ici, dans l'impôt de ${s.year}.`:`La régularisation de tes revenus ${s.year} arrivera vers l'été ${s.year+1} : saisis-la dans le mois où elle tombe, elle sera comptée ici.`}</p></div>`;
 }
 function primeCard(s){
   const types=Object.keys(s.pb);if(!types.length)return'';
@@ -582,18 +584,18 @@ function monthTable(s){
   const rows=[];
   for(let m=1;m<=12;m++){const e=s.byM[m];
     if(!e){if(m<=last+1)rows.push(`<tr class="mt-empty" onclick="openForm('${key(s.year,m)}')"><td>${MOIS[m-1]}</td><td colspan="4" style="text-align:left;color:#a8a3c7">+ saisir</td></tr>`);continue}
-    const poche=e.net-(isFinite(e.impV)?e.impV:0)-e.reg;
+    const poche=e.net-(isFinite(e.impV)?e.impV:0);
     rows.push(`<tr onclick="openForm('${key(s.year,m)}')" class="${e.isPrime?'mt-pr':''}"><td>${MOIS[m-1]}</td><td>${eur(e.net)}</td>
      <td style="color:var(--teaT)">${e.primeNet>0.5?(e.est?'≈':'')+eur(e.primeNet):'—'}</td>
-     <td style="color:var(--oraT)">${isFinite(e.impV)?eur(e.impV):'—'}${e.reg?`<br><small style="color:${e.reg>0?'var(--oraT)':'var(--vio)'};font-weight:700">régul ${e.reg>0?'+':'−'}${eur(Math.abs(e.reg))}</small>`:''}</td>
+     <td style="color:var(--oraT)">${isFinite(e.impV)?eur(e.impV):'—'}${e.reg?`<br><small style="color:${e.reg>0?'var(--oraT)':'var(--vio)'};font-weight:700">régul ${e.regY||s.year-1} ${e.reg>0?'+':'−'}${eur(Math.abs(e.reg))}</small>`:''}</td>
      <td style="color:var(--vio);font-weight:700">${eur(poche)}</td></tr>`)}
   const pas=s.list.reduce((a,e)=>a+(isFinite(e.impV)?e.impV:0),0);
-  const poche=s.total-pas-s.regul;
+  const poche=s.total-pas;
   return `<div style="overflow-x:auto;margin-top:12px"><table class="ytable mtable"><thead><tr><th>Mois</th><th>Net</th><th>Primes</th><th>Impôt</th><th>Poche</th></tr></thead><tbody>
    ${rows.join('')}
-   <tr class="mt-tot"><td>Total</td><td>${eur(s.total)}</td><td style="color:var(--teaT)">${eur(s.primes)}</td><td style="color:var(--oraT)">${eur(pas+s.regul)}</td><td style="color:var(--vio)">${eur(poche)}</td></tr>
+   <tr class="mt-tot"><td>Total</td><td>${eur(s.total)}</td><td style="color:var(--teaT)">${eur(s.primes)}</td><td style="color:var(--oraT)">${eur(pas)}</td><td style="color:var(--vio)">${eur(poche)}</td></tr>
    </tbody></table></div>
-   <p class="tip">Touche un mois pour le modifier. Net = net avant impôt. Primes = part nette des primes${s.list.some(e=>e.est)?' (≈ estimée à 78 % du brut quand le brut du mois n\'est pas saisi)':''}. Impôt = prélevé à la source${s.regul?' + régularisations':''}. Poche = ce qu'il te reste.</p>`;
+   <p class="tip">Touche un mois pour le modifier. Net = net avant impôt. Primes = part nette des primes${s.list.some(e=>e.est)?' (≈ estimée à 78 % du brut quand le brut du mois n\'est pas saisi)':''}. Impôt = prélevé à la source. Poche = net − impôt à la source.${s.list.some(e=>e.reg)?' Les régularisations affichées ici concernent l\'année d\'avant : elles sont comptées dans ses impôts.':''}${s.regul?` La régularisation de tes revenus ${s.year} est comptée dans le résumé et la carte Impôts.`:''}</p>`;
 }
 function monthChart(s){
   const W=330,H=170,top=10,bot=20,left=4,ch=H-top-bot,step=(W-left)/12,bw=step-6;
@@ -681,6 +683,7 @@ function openForm(k){
    F('th').placeholder=lastTh?String(lastTh.th).replace('.',',')+' (inchangé)':'ex. 12,45';
    F('coef').placeholder=lastCo?lastCo.coef+' (inchangé)':'ex. 190';}
   F('regt').value=e&&e.regul?(e.regul>0?'plus':'moins'):'none';F('rega').value=e&&e.regul?Math.abs(e.regul):'';
+  fillRegY(e&&e.regY);
   F('net').value=e?e.net:'';F('imp').value=e&&e.imp!=null?e.imp:'';F('brut').value=e&&e.brut?e.brut:'';F('note').value=e&&e.note||'';
   F('prime').value=!e||e.prime==null?'auto':e.prime?'oui':'non';
   fPrimes=(e&&e.primes||[]).map(p=>({...p}));
@@ -702,6 +705,14 @@ function drawPrimes(){
 }
 F('addp').onclick=()=>{const used=fPrimes.map(p=>p.type);fPrimes.push({type:ptypes().find(t=>!used.includes(t))||ptypes()[0],brut:''});drawPrimes();
   const ins=F('primes').querySelectorAll('input');ins[ins.length-1].focus()};
+function fillRegY(v){
+  const y=+(F('month').value||'').slice(0,4)||new Date().getFullYear();
+  F('regy').innerHTML=[y-1,y-2,y].map(x=>`<option value="${x}">${x}${x===y-1?' (année d\'avant)':''}</option>`).join('');
+  F('regy').value=v&&[y-1,y-2,y].includes(+v)?v:y-1;
+  F('regyw').style.display=F('regt').value==='none'?'none':'flex';
+}
+F('regt').addEventListener('change',()=>fillRegY(F('regy').value));
+F('month').addEventListener('change',()=>fillRegY());
 function preview(){
   const net=+F('net').value,y=(F('month').value||'').slice(0,4),t=+data().taux[y];
   const imp=F('imp').value!==''?+F('imp').value:(t?net*t/100:NaN);
@@ -716,7 +727,7 @@ F('save').onclick=()=>{
   if(editing&&editing!==k)delete DB.months[editing];
   const p=F('prime').value;
   const e={net};if(F('imp').value!=='')e.imp=+F('imp').value;
-  if(F('regt').value!=='none'&&+F('rega').value>0)e.regul=(F('regt').value==='plus'?1:-1)*Math.round(+F('rega').value*100)/100;if(+F('brut').value)e.brut=+F('brut').value;if(+F('th').value)e.th=+F('th').value;if(+F('coef').value)e.coef=+F('coef').value;
+  if(F('regt').value!=='none'&&+F('rega').value>0){e.regul=(F('regt').value==='plus'?1:-1)*Math.round(+F('rega').value*100)/100;if(+F('regy').value!==+k.slice(0,4)-1)e.regY=+F('regy').value}if(+F('brut').value)e.brut=+F('brut').value;if(+F('th').value)e.th=+F('th').value;if(+F('coef').value)e.coef=+F('coef').value;
   if(p!=='auto')e.prime=p==='oui';if(F('note').value.trim())e.note=F('note').value.trim();
   const pr=fPrimes.filter(x=>+x.brut>0).map(x=>({type:x.type,brut:Math.round(+x.brut*100)/100}));if(pr.length)e.primes=pr;
   DB.months[k]=e;sel=+k.slice(0,4);commit();$('#mForm').classList.remove('on');
