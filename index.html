@@ -141,6 +141,10 @@ select{width:100%;background:#fff;border:1px solid var(--line);color:var(--ink);
 .ptype .nm small{font-size:12px;color:var(--mut)}
 .hide .ptype .num,.hide .ptable td:not(:first-child){filter:blur(9px)}
 .ptable td:first-child{font-weight:600;white-space:nowrap}
+.mtable{font-size:12.5px}.mtable td,.mtable th{padding:8px 3px}
+.mtable tr{cursor:pointer}.mtable tr.mt-pr td:first-child{color:var(--teaT)}
+.mtable tr.mt-tot td{font-weight:800;border-top:2px solid #e4e0fa}
+.hide .mtable td:not(:first-child){filter:blur(8px)}
 code{background:#fff;padding:1px 5px;border-radius:5px;font-size:12px}
 </style>
 </head>
@@ -267,7 +271,8 @@ code{background:#fff;padding:1px 5px;border-radius:5px;font-size:12px}
 
 <script>
 const FILE_NAME = 'mes-salaires.json';
-const PRIME_SEUIL = 1.3;   // un mois > 130 % du mois médian de l'année = mois avec prime
+const PRIME_SEUIL = 1.3;
+const RATIO_NET = 0.78;  // part nette d'une prime brute quand le brut du mois n'est pas saisi   // un mois > 130 % du mois médian de l'année = mois avec prime
 
 const LKEY='mes-salaires-v2', SKEY='mes-salaires-settings';
 const MOIS=['Janv','Févr','Mars','Avr','Mai','Juin','Juil','Août','Sept','Oct','Nov','Déc'];
@@ -317,11 +322,21 @@ function yearStats(y){
   const list=[];for(let m=1;m<=12;m++){const e=d.months[key(y,m)];if(e&&+e.net)list.push({m,...e,net:+e.net})}
   const med=median(list.map(e=>e.net));
   list.forEach(e=>{e.isPrime=e.prime===true||(e.prime==null&&((e.primes||[]).some(p=>!isMonthly(p.type)&&!isNet(p.type))||(list.length>=3&&e.net>PRIME_SEUIL*med)));
-    e.impV=e.imp!=null&&e.imp!==''?+e.imp:(isFinite(t)&&t>0?e.net*t/100:NaN)});
-  const normal=list.filter(e=>!e.isPrime);
-  const hab=normal.length?normal.reduce((a,e)=>a+e.net,0)/normal.length:median(list.map(e=>e.net));
+    e.impV=e.imp!=null&&e.imp!==''?+e.imp:(isFinite(t)&&t>0?e.net*t/100:NaN);e.reg=+e.regul||0});
+  // salaire hors primes : net du mois moins la part nette estimée des primes brutes saisies
+  list.forEach(e=>{
+    const pB=(e.primes||[]).filter(p=>!isNet(p.type)&&!isMonthly(p.type)).reduce((a,p)=>a+(+p.brut||0),0);
+    const r=+e.brut&&e.net<+e.brut?e.net/+e.brut:RATIO_NET;
+    e.pB=pB;e.est=pB>0&&!(+e.brut);
+    if(pB>0){e.primeNet=Math.min(pB*r,e.net);e.hp=e.net-e.primeNet}
+    else if(e.isPrime){e.hp=NaN}
+    else{e.primeNet=0;e.hp=e.net}
+  });
+  const knownHp=list.filter(e=>isFinite(e.hp));
+  const hab=knownHp.length?knownHp.reduce((a,e)=>a+e.hp,0)/knownHp.length:median(list.map(e=>e.net));
+  list.forEach(e=>{if(!isFinite(e.hp)){e.hpF=Math.min(hab,e.net);e.primeNet=e.net-e.hpF;e.est=true}else e.hpF=e.hp});
   const total=list.reduce((a,e)=>a+e.net,0);
-  const primes=list.filter(e=>e.isPrime).reduce((a,e)=>a+Math.max(0,e.net-hab),0);
+  const primes=list.reduce((a,e)=>a+e.primeNet,0);
   const kn=list.filter(e=>isFinite(e.impV));
   const pas=kn.reduce((a,e)=>a+e.impV,0),impN=kn.length,netKnown=kn.reduce((a,e)=>a+e.net,0);
   const regs=list.filter(e=>+e.regul).map(e=>({m:e.m,v:+e.regul}));
@@ -344,8 +359,9 @@ function allStats(){
   const ys=years().map(yearStats);
   ys.forEach((s,i)=>{const p=ys[i-1];if(!p)return;s.prev=p;
     const common=s.list.filter(e=>p.byM[e.m]).map(e=>e.m);
-    s.common=common;s.cur=common.reduce((a,m)=>a+s.byM[m].net,0);s.old=common.reduce((a,m)=>a+p.byM[m].net,0);
-    s.evSame=s.old?s.cur/s.old-1:NaN;s.evHab=p.hab?s.hab/p.hab-1:NaN;s.dHab=s.hab-p.hab;s.evTotal=s.n===12&&p.n===12?s.total/p.total-1:NaN});
+    s.common=common;s.cur=common.reduce((a,m)=>a+s.byM[m].hpF,0);s.old=common.reduce((a,m)=>a+p.byM[m].hpF,0);
+    s.evSame=s.old?s.cur/s.old-1:NaN;
+    s.curT=common.reduce((a,m)=>a+s.byM[m].net,0);s.oldT=common.reduce((a,m)=>a+p.byM[m].net,0);s.evSameTot=s.oldT?s.curT/s.oldT-1:NaN;s.evHab=p.hab?s.hab/p.hab-1:NaN;s.dHab=s.hab-p.hab;s.evTotal=s.n===12&&p.n===12?s.total/p.total-1:NaN});
   return ys;
 }
 function periode(ms){if(!ms.length)return'';const a=Math.min(...ms),b=Math.max(...ms);return ms.length===12?"sur l'année":a===b?'en '+MOISL[a-1]:'de '+MOISL[a-1]+' à '+MOISL[b-1]}
@@ -391,7 +407,7 @@ function renderYear(){
   <div class="card donutcard">
     <div class="donut">
       <svg role="img" aria-label="Répartition du net ${s.year}" width="160" height="160" viewBox="0 0 160 160"><circle cx="80" cy="80" r="${R}" fill="none" stroke="#f0eefb" stroke-width="22"/><g transform="rotate(-90 80 80)">${arcs}</g></svg>
-      <div class="c"><small>salaire habituel</small><b>${eur(s.hab)}</b><small>net / mois</small></div>
+      <div class="c"><small>hors primes</small><b>${eur(s.hab)}</b><small>net / mois</small></div>
     </div>
     <div class="leg">
       <div><span>Net ${s.n<12?periode(s.list.map(e=>e.m)):"de l'année"}</span><b>${eur(s.total)}</b></div>
@@ -401,26 +417,26 @@ function renderYear(){
   </div>
   <div class="tiles">
     <div class="tile v1 ${neg?'neg':''}">
-      <span class="l">${s.prev?'Vs '+s.prev.year+' · mêmes mois':'Première année'}</span>
+      <span class="l">${s.prev?'Hors primes vs '+s.prev.year:'Première année'}</span>
       <span class="v">${s.prev?sgn(s.evSame):s.n+' mois'}</span>
-      <span class="l amt">${s.prev?seur(s.cur-s.old)+' '+periode(s.common):'depuis ton arrivée'}</span>
+      <span class="l amt">${s.prev?seur((s.cur-s.old)/s.common.length)+'/mois · mêmes mois':'depuis ton arrivée'}</span>
     </div>
     <div class="tile v2">
       ${hasImp&&isFinite(s.joursImp)?`<span class="l">Pour payer l'impôt</span><span class="v">${Math.round(s.joursImp)} jours</span><span class="l">de travail · taux ${pct(s.taux)}</span>`:
-      `<span class="l">Salaire habituel</span><span class="v">${s.prev?sgn(s.evHab):eur(s.hab)}</span><span class="l amt">${s.prev?seur(s.dHab)+'/mois vs '+s.prev.year:'net par mois'}</span>`}
+      `<span class="l">Primes comprises</span><span class="v">${s.prev?sgn(s.evSameTot):eur(s.total)}</span><span class="l amt">${s.prev?'vs '+s.prev.year+' · mêmes mois':'net total'}</span>`}
     </div>
   </div>
   <div class="card">
     <div class="ttl">${s.year} mois par mois</div>
     ${monthChart(s)}
-    <div class="legrow"><span><i class="dot" style="background:#4c3bc9"></i>Mois normal</span><span><i class="dot" style="background:#2bb3a0"></i>Avec prime</span>${s.prev?`<span><i class="dot" style="background:#c9c3ee"></i>${s.prev.year}</span>`:''}</div>
-    <div class="mgrid">${MOIS.map((n,i)=>{const e=s.byM[i+1];return`<button class="mcell ${e?(e.isPrime?'pr':''):'empty'}" onclick="openForm('${key(s.year,i+1)}')"><small>${n}${e&&e.isPrime?' · prime':''}</small><b>${e?eur(e.net):'+'}</b></button>`}).join('')}</div>
+    <div class="legrow"><span><i class="dot" style="background:#4c3bc9"></i>Hors primes</span><span><i class="dot" style="background:#2bb3a0"></i>Primes</span>${s.prev?`<span><i class="dot" style="background:#c9c3ee"></i>${s.prev.year}</span>`:''}</div>
+    ${monthTable(s)}
   </div>
   <div class="card rows">
     <div class="ttl">${s.year} en résumé</div>
     <div class="row"><span>Net avant impôt</span><span class="num">${eur(s.total)}</span></div>
-    <div class="row"><span>Salaire habituel</span><span class="num">${eur(s.hab)}/mois</span></div>
-    <div class="row"><span>Primes et extras</span><span class="num" style="color:var(--teaT)">${eur(s.primes)}</span></div>
+    <div class="row"><span>Salaire hors primes</span><span class="num">${eur(s.hab)}/mois</span></div>
+    <div class="row"><span>Primes (part nette${s.list.some(e=>e.est)?' ≈':''})</span><span class="num" style="color:var(--teaT)">${eur(s.primes)}</span></div>
     ${hasImp?`<div class="row"><span>Impôt payé${s.regul?' (régul. comprises)':''}</span><span class="num" style="color:var(--oraT)">− ${eur(s.imp)}</span></div>
     <div class="row"><span><b style="color:var(--ink)">Dans ta poche</b></span><span class="num" style="color:var(--vio)">${eur(s.apres)}</span></div>`:''}
     ${isFinite(s.brut)?`<div class="row"><span>Brut · cotisations</span><span class="num">${eur(s.brut)} · ${pct(s.cot/s.brut)}</span></div>`:''}
@@ -431,7 +447,7 @@ function renderYear(){
   ${primeCard(s)}
   <div class="facts">
     ${anc?`<div class="fact"><div class="ic vio">${I.cal}</div><div><b>${anc} dans ${esc(d.company)||'ta boîte'}</b><span>Arrivé en ${MOISL[+d.start.slice(5)-1]} ${d.start.slice(0,4)}</span></div></div>`:''}
-    ${all.length>1?`<div class="fact"><div class="ic vio">${I.up}</div><div><b>Salaire habituel : ${sgn(all[all.length-1].hab/first.hab-1,0)} depuis ${first.year}</b><span>${eur(first.hab)} → ${eur(all[all.length-1].hab)} par mois · record en ${best.year}</span></div></div>`:''}
+    ${all.length>1?`<div class="fact"><div class="ic vio">${I.up}</div><div><b>Hors primes : ${sgn(all[all.length-1].hab/first.hab-1,0)} depuis ${first.year}</b><span>${eur(first.hab)} → ${eur(all[all.length-1].hab)} par mois · record en ${best.year}</span></div></div>`:''}
     ${baisseFact(all)}
     <div class="fact"><div class="ic tea">${I.gift}</div><div><b>${eur(totPrimes)} de primes depuis ${first.year}</b><span>${primeMonths(all)}</span></div></div>
   </div>`;
@@ -486,8 +502,14 @@ function impCard(s){
   if(!s.impN&&!s.regs.length)return `<div class="card"><div class="ttl">Impôts ${s.year}</div><p class="tip" style="margin-top:0">Pas encore d'impôt saisi. Mets le montant prélevé dans chaque mois, ou ton taux dans les réglages.</p></div>`;
   const p=s.prev&&(s.prev.impN||s.prev.regs.length)?s.prev:null;
   const ev=p&&p.imp?s.imp/p.imp-1:NaN;
+  const pp=p&&p.pas?s.pas/p.pas-1:NaN;
   return `<div class="card rows"><div class="ttl">Impôts ${s.year}</div>
-   <div class="row"><span>Prélevé sur la paie${s.impN<s.n?` <small>(${s.impN}/${s.n} mois)</small>`:''}</span><span class="num">${eur(s.pas)}</span></div>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">
+     <div style="background:var(--ora2);border-radius:14px;padding:12px;color:#5a2a00"><div style="font-size:12px">Prélevé à la source</div><div class="v" style="font-family:var(--head);font-size:21px;font-weight:700">${eur(s.pas)}</div>
+       <div style="font-size:11px">${s.impN<s.n?s.impN+'/'+s.n+' mois saisis':'sur la paie'}${isFinite(pp)?' · '+sgn(pp)+' vs '+p.year:''}</div></div>
+     <div style="background:${s.regul>0?'#fde8e8':s.regul<0?'var(--vio2)':'#f6f5ff'};border-radius:14px;padding:12px;color:${s.regul>0?'#9b1c1c':s.regul<0?'var(--vio)':'var(--mut)'}"><div style="font-size:12px">Régularisations</div><div class="v" style="font-family:var(--head);font-size:21px;font-weight:700">${s.regul?(s.regul>0?'+':'−')+eur(Math.abs(s.regul)):'0 €'}</div>
+       <div style="font-size:11px">${s.regul>0?'repris par les impôts':s.regul<0?'remboursé':'aucune'}${p&&p.regul?' · '+p.year+' : '+(p.regul>0?'+':'−')+eur(Math.abs(p.regul)):''}</div></div>
+   </div>
    ${s.zeroM.length?`<div class="row"><span>Mois sans impôt</span><span class="num">${s.zeroM.map(m=>MOIS[m-1]).join(', ')}</span></div>`:''}
    ${s.regs.map(r=>`<div class="row"><span>${MOISL[r.m-1][0].toUpperCase()+MOISL[r.m-1].slice(1)} · ${r.v>0?'repris par les impôts':'remboursé'}</span><span class="num" style="color:${r.v>0?'var(--oraT)':'var(--vio)'}">${r.v>0?'+ ':'− '}${eur(Math.abs(r.v))}</span></div>`).join('')}
    <div class="row"><span><b style="color:var(--ink)">Impôt réellement payé</b></span><span class="num" style="color:var(--oraT)">${eur(s.imp)}</span></div>
@@ -548,12 +570,30 @@ function ancien(st){if(!st)return'';const a=new Date(st+'-01'),n=new Date();cons
 function baisseFact(all){
   const b=all.filter(x=>x.prev&&x.evHab<-0.001);
   if(all.length<2)return'';
-  return `<div class="fact"><div class="ic ora">${b.length?I.down:I.up}</div><div><b>${b.length?'Salaire habituel en baisse : '+b.map(x=>x.year).join(', '):'Salaire habituel jamais en baisse'}</b><span>${b.length?b.map(x=>x.year+' '+sgn(x.evHab)).join(' · '):'Il a progressé chaque année, hors primes'}</span></div></div>`;
+  return `<div class="fact"><div class="ic ora">${b.length?I.down:I.up}</div><div><b>${b.length?'Salaire hors primes en baisse : '+b.map(x=>x.year).join(', '):'Salaire hors primes jamais en baisse'}</b><span>${b.length?b.map(x=>x.year+' '+sgn(x.evHab)).join(' · '):'Il a progressé chaque année, hors primes'}</span></div></div>`;
 }
 function primeMonths(all){
   const c={};all.forEach(s=>s.list.filter(e=>e.isPrime).forEach(e=>c[e.m]=(c[e.m]||0)+1));
   const top=Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([m])=>MOISL[m-1]);
   return top.length?'Elles tombent surtout en '+top.join(', '):'Aucune prime détectée';
+}
+function monthTable(s){
+  const last=s.list.length?Math.max(...s.list.map(e=>e.m)):0;
+  const rows=[];
+  for(let m=1;m<=12;m++){const e=s.byM[m];
+    if(!e){if(m<=last+1)rows.push(`<tr class="mt-empty" onclick="openForm('${key(s.year,m)}')"><td>${MOIS[m-1]}</td><td colspan="4" style="text-align:left;color:#a8a3c7">+ saisir</td></tr>`);continue}
+    const poche=e.net-(isFinite(e.impV)?e.impV:0)-e.reg;
+    rows.push(`<tr onclick="openForm('${key(s.year,m)}')" class="${e.isPrime?'mt-pr':''}"><td>${MOIS[m-1]}</td><td>${eur(e.net)}</td>
+     <td style="color:var(--teaT)">${e.primeNet>0.5?(e.est?'≈':'')+eur(e.primeNet):'—'}</td>
+     <td style="color:var(--oraT)">${isFinite(e.impV)?eur(e.impV):'—'}${e.reg?`<br><small style="color:${e.reg>0?'var(--oraT)':'var(--vio)'};font-weight:700">régul ${e.reg>0?'+':'−'}${eur(Math.abs(e.reg))}</small>`:''}</td>
+     <td style="color:var(--vio);font-weight:700">${eur(poche)}</td></tr>`)}
+  const pas=s.list.reduce((a,e)=>a+(isFinite(e.impV)?e.impV:0),0);
+  const poche=s.total-pas-s.regul;
+  return `<div style="overflow-x:auto;margin-top:12px"><table class="ytable mtable"><thead><tr><th>Mois</th><th>Net</th><th>Primes</th><th>Impôt</th><th>Poche</th></tr></thead><tbody>
+   ${rows.join('')}
+   <tr class="mt-tot"><td>Total</td><td>${eur(s.total)}</td><td style="color:var(--teaT)">${eur(s.primes)}</td><td style="color:var(--oraT)">${eur(pas+s.regul)}</td><td style="color:var(--vio)">${eur(poche)}</td></tr>
+   </tbody></table></div>
+   <p class="tip">Touche un mois pour le modifier. Net = net avant impôt. Primes = part nette des primes${s.list.some(e=>e.est)?' (≈ estimée à 78 % du brut quand le brut du mois n\'est pas saisi)':''}. Impôt = prélevé à la source${s.regul?' + régularisations':''}. Poche = ce qu'il te reste.</p>`;
 }
 function monthChart(s){
   const W=330,H=170,top=10,bot=20,left=4,ch=H-top-bot,step=(W-left)/12,bw=step-6;
@@ -561,7 +601,9 @@ function monthChart(s){
   const max=Math.max(cur,s.prev?Math.min(Math.max(...s.prev.list.map(e=>e.net)),cur*1.25,s.hab*2.2):0)*1.05||1;
   let svg=`<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Net mensuel ${s.year}"><line x1="0" x2="${W}" y1="${top+ch}" y2="${top+ch}" stroke="#e4e0fa"/>`;
   for(let m=1;m<=12;m++){const x=left+(m-1)*step,e=s.byM[m],p=s.prev&&s.prev.byM[m];
-    if(e){const h=e.net/max*ch;svg+=`<rect x="${x}" y="${top+ch-h}" width="${bw}" height="${h}" rx="5" fill="${e.isPrime?'#2bb3a0':'#4c3bc9'}"><title>${MOIS[m-1]} ${s.year} : ${eur(e.net)}</title></rect>`}
+    if(e){const h=e.net/max*ch,hh=Math.min(e.hpF,e.net)/max*ch;
+      svg+=`<rect x="${x}" y="${top+ch-h}" width="${bw}" height="${h}" rx="5" fill="#2bb3a0"><title>${MOIS[m-1]} ${s.year} : ${eur(e.net)}</title></rect>`;
+      svg+=`<rect x="${x}" y="${top+ch-hh}" width="${bw}" height="${hh}" rx="5" fill="#4c3bc9"><title>${MOIS[m-1]} ${s.year} : ${eur(e.hpF)} hors primes</title></rect>`}
     if(p){const yy=Math.max(top+2,top+ch-p.net/max*ch);svg+=`<line x1="${x-1}" x2="${x+bw+1}" y1="${yy}" y2="${yy}" stroke="#c9c3ee" stroke-width="3" stroke-linecap="round"/>`}
     svg+=`<text x="${x+bw/2}" y="${H-5}" font-size="9" fill="#554e80" text-anchor="middle">${MOIS[m-1].slice(0,1)}</text>`}
   return svg+'</svg>';
@@ -576,24 +618,24 @@ function renderHist(){
   const first=all[0];
   el.innerHTML=`
   <div class="card" style="margin-top:14px"><div class="ttl">Net par année</div>${yearChart(all)}
-    <div class="legrow"><span><i class="dot" style="background:#4c3bc9"></i>Salaire habituel</span><span><i class="dot" style="background:#2bb3a0"></i>Primes</span><span>* année incomplète</span></div></div>
-  <div class="card"><div class="ttl">Salaire habituel · net par mois</div>${habChart(all)}</div>
+    <div class="legrow"><span><i class="dot" style="background:#4c3bc9"></i>Hors primes</span><span><i class="dot" style="background:#2bb3a0"></i>Primes</span><span>* année incomplète</span></div></div>
+  <div class="card"><div class="ttl">Salaire hors primes · net par mois</div>${habChart(all)}</div>
   ${thHist()}
   ${impHist(all)}
   ${primeHist(all)}
   <div class="card"><div class="ttl">Année par année</div>
-    <table class="ytable"><thead><tr><th>Année</th><th>Net</th><th>Habituel</th><th>Vs N−1*</th></tr></thead><tbody>
+    <table class="ytable"><thead><tr><th>Année</th><th>Net</th><th>Hors primes</th><th>Vs N−1*</th></tr></thead><tbody>
     ${all.slice().reverse().map(s=>`<tr><td>${s.year}${s.n<12?` <small style="color:var(--mut);font-weight:500">${s.n} m</small>`:''}</td><td>${eur(s.total)}</td><td>${eur(s.hab)}</td>
       <td style="color:${!s.prev?'var(--mut)':s.evSame<0?'var(--oraT)':'var(--vio)'};font-weight:700">${s.prev?sgn(s.evSame):'—'}</td></tr>`).join('')}
     </tbody></table>
-    <p class="tip">* comparé aux mêmes mois de l'année précédente, pour qu'une année en cours ou incomplète ne fausse rien.</p></div>
+    <p class="tip">* salaire hors primes, comparé aux mêmes mois de l'année précédente.</p></div>
   <div class="card rows">
     <div class="ttl">Depuis ${first.year}</div>
     <div class="row"><span>Net avant impôt cumulé</span><span class="num">${eur(tot.net)}</span></div>
     <div class="row"><span>Dont primes</span><span class="num" style="color:var(--teaT)">${eur(tot.primes)}</span></div>
     <div class="row"><span>Impôts payés</span><span class="num" style="color:var(--oraT)">${tot.imp?eur(tot.imp)+(tot.impOk?'':' (incomplet)'):'à compléter'}</span></div>
   </div>
-  <p class="tip" style="text-align:center;margin:14px 24px">Le salaire habituel est la moyenne des mois sans prime. Un mois est compté « avec prime » s'il dépasse de 30 % le mois médian de l'année ; tu peux corriger mois par mois.</p>`;
+  <p class="tip" style="text-align:center;margin:14px 24px">Le salaire hors primes est ton net mensuel sans les primes : on retire la part nette des primes saisies (estimée à 78 % du brut si le brut du mois manque). Un mois nettement plus élevé sans prime saisie est compté à part. Les comparaisons « vs N−1 » portent sur les mêmes mois, hors primes.</p>`;
 }
 function axisMax(v){if(v<=0)return 1;const p=Math.pow(10,Math.floor(Math.log10(v)));const n=v/p;return(n<=1?1:n<=2?2:n<=4?4:n<=6?6:n<=8?8:10)*p}
 function yearChart(all){
