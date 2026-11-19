@@ -175,8 +175,13 @@ code{background:#fff;padding:1px 5px;border-radius:5px;font-size:12px}
   <input id="f-month" type="month">
   <label for="f-net">Net avant impôt (€)</label>
   <input id="f-net" type="number" inputmode="decimal" step="0.01">
-  <label for="f-imp">Impôt prélevé à la source (€) <small>— facultatif si tu as saisi le taux de l'année</small></label>
+  <label for="f-imp">Impôt prélevé sur la fiche de paie (€) <small>— mets 0 s'il n'y en a pas eu ; vide = calculé avec le taux de l'année</small></label>
   <input id="f-imp" type="number" inputmode="decimal" step="0.01">
+  <label for="f-regt">Régularisation des impôts ce mois-ci <small>— hors fiche de paie</small></label>
+  <div class="prow" style="margin-top:0">
+    <select id="f-regt" style="flex:1.4"><option value="none">Aucune</option><option value="plus">Les impôts m'en ont repris</option><option value="moins">Les impôts m'ont remboursé</option></select>
+    <input id="f-rega" type="number" inputmode="decimal" step="0.01" placeholder="Montant €" aria-label="Montant de la régularisation">
+  </div>
   <label for="f-brut">Brut (€) <small>— facultatif</small></label>
   <input id="f-brut" type="number" inputmode="decimal" step="0.01">
   <label>Primes du mois <small>— montant brut, comme sur la fiche de paie</small></label>
@@ -306,15 +311,22 @@ function yearStats(y){
   const hab=normal.length?normal.reduce((a,e)=>a+e.net,0)/normal.length:median(list.map(e=>e.net));
   const total=list.reduce((a,e)=>a+e.net,0);
   const primes=list.filter(e=>e.isPrime).reduce((a,e)=>a+Math.max(0,e.net-hab),0);
-  const impKnown=list.length&&list.every(e=>isFinite(e.impV));
-  const imp=impKnown?list.reduce((a,e)=>a+e.impV,0):NaN;
+  const kn=list.filter(e=>isFinite(e.impV));
+  const pas=kn.reduce((a,e)=>a+e.impV,0),impN=kn.length,netKnown=kn.reduce((a,e)=>a+e.net,0);
+  const regs=list.filter(e=>+e.regul).map(e=>({m:e.m,v:+e.regul}));
+  const regul=regs.reduce((a,r)=>a+r.v,0);
+  const impKnown=list.length>0&&impN===list.length;
+  const imp=impN||regs.length?pas+regul:NaN;
+  const zeroM=kn.filter(e=>e.impV===0).map(e=>e.m);
   const brutList=list.filter(e=>+e.brut);
   const brut=brutList.length===list.length&&list.length?brutList.reduce((a,e)=>a+ +e.brut,0):NaN;
   const cot=isFinite(brut)?brut-total:NaN;
   const pb={};list.forEach(e=>(e.primes||[]).forEach(p=>{if(!pb[p.type])pb[p.type]={brut:0,months:[]};pb[p.type].brut+=+p.brut||0;if(!pb[p.type].months.includes(e.m))pb[p.type].months.push(e.m)}));
   const pbTotal=Object.values(pb).reduce((a,x)=>a+x.brut,0);
   return {year:y,pb,pbTotal,list,n:list.length,byM:Object.fromEntries(list.map(e=>[e.m,e])),total,hab,primes,
-    imp,taux:impKnown&&total?imp/total:NaN,apres:total-(isFinite(imp)?imp:0),brut,cot,joursImp:impKnown&&total?imp/total*365:NaN};
+    imp,pas,impN,regs,regul,zeroM,impKnown,
+    taux:impKnown&&total?imp/total:(netKnown?pas/netKnown:NaN),tauxPas:netKnown?pas/netKnown:NaN,
+    apres:total-(isFinite(imp)?imp:0),brut,cot,joursImp:impKnown&&total?imp/total*365:(netKnown?pas/netKnown*365:NaN)};
 }
 function allStats(){
   const ys=years().map(yearStats);
@@ -382,7 +394,7 @@ function renderYear(){
       <span class="l amt">${s.prev?seur(s.cur-s.old)+' '+periode(s.common):'depuis ton arrivée'}</span>
     </div>
     <div class="tile v2">
-      ${hasImp?`<span class="l">Pour payer l'impôt</span><span class="v">${Math.round(s.joursImp)} jours</span><span class="l">de travail · taux ${pct(s.taux)}</span>`:
+      ${hasImp&&isFinite(s.joursImp)?`<span class="l">Pour payer l'impôt</span><span class="v">${Math.round(s.joursImp)} jours</span><span class="l">de travail · taux ${pct(s.taux)}</span>`:
       `<span class="l">Salaire habituel</span><span class="v">${s.prev?sgn(s.evHab):eur(s.hab)}</span><span class="l amt">${s.prev?seur(s.dHab)+'/mois vs '+s.prev.year:'net par mois'}</span>`}
     </div>
   </div>
@@ -397,11 +409,12 @@ function renderYear(){
     <div class="row"><span>Net avant impôt</span><span class="num">${eur(s.total)}</span></div>
     <div class="row"><span>Salaire habituel</span><span class="num">${eur(s.hab)}/mois</span></div>
     <div class="row"><span>Primes et extras</span><span class="num" style="color:var(--teaT)">${eur(s.primes)}</span></div>
-    ${hasImp?`<div class="row"><span>Impôt prélevé</span><span class="num" style="color:var(--oraT)">− ${eur(s.imp)}</span></div>
+    ${hasImp?`<div class="row"><span>Impôt payé${s.regul?' (régul. comprises)':''}</span><span class="num" style="color:var(--oraT)">− ${eur(s.imp)}</span></div>
     <div class="row"><span><b style="color:var(--ink)">Dans ta poche</b></span><span class="num" style="color:var(--vio)">${eur(s.apres)}</span></div>`:''}
     ${isFinite(s.brut)?`<div class="row"><span>Brut · cotisations</span><span class="num">${eur(s.brut)} · ${pct(s.cot/s.brut)}</span></div>`:''}
     <div class="row"><span>Mois saisis</span><span class="num">${s.n} / 12</span></div>
   </div>
+  ${impCard(s)}
   ${primeCard(s)}
   <div class="facts">
     ${anc?`<div class="fact"><div class="ic vio">${I.cal}</div><div><b>${anc} dans ${esc(d.company)||'ta boîte'}</b><span>Arrivé en ${MOISL[+d.start.slice(5)-1]} ${d.start.slice(0,4)}</span></div></div>`:''}
@@ -409,6 +422,19 @@ function renderYear(){
     ${baisseFact(all)}
     <div class="fact"><div class="ic tea">${I.gift}</div><div><b>${eur(totPrimes)} de primes depuis ${first.year}</b><span>${primeMonths(all)}</span></div></div>
   </div>`;
+}
+function impCard(s){
+  if(!s.impN&&!s.regs.length)return `<div class="card"><div class="ttl">Impôts ${s.year}</div><p class="tip" style="margin-top:0">Pas encore d'impôt saisi. Mets le montant prélevé dans chaque mois, ou ton taux dans les réglages.</p></div>`;
+  const p=s.prev&&(s.prev.impN||s.prev.regs.length)?s.prev:null;
+  const ev=p&&p.imp?s.imp/p.imp-1:NaN;
+  return `<div class="card rows"><div class="ttl">Impôts ${s.year}</div>
+   <div class="row"><span>Prélevé sur la paie${s.impN<s.n?` <small>(${s.impN}/${s.n} mois)</small>`:''}</span><span class="num">${eur(s.pas)}</span></div>
+   ${s.zeroM.length?`<div class="row"><span>Mois sans impôt</span><span class="num">${s.zeroM.map(m=>MOIS[m-1]).join(', ')}</span></div>`:''}
+   ${s.regs.map(r=>`<div class="row"><span>${MOISL[r.m-1][0].toUpperCase()+MOISL[r.m-1].slice(1)} · ${r.v>0?'repris par les impôts':'remboursé'}</span><span class="num" style="color:${r.v>0?'var(--oraT)':'var(--vio)'}">${r.v>0?'+ ':'− '}${eur(Math.abs(r.v))}</span></div>`).join('')}
+   <div class="row"><span><b style="color:var(--ink)">Impôt réellement payé</b></span><span class="num" style="color:var(--oraT)">${eur(s.imp)}</span></div>
+   ${s.impKnown?`<div class="row"><span>Taux réel</span><span class="num">${pct(s.taux)} du net</span></div>`:''}
+   ${p?`<div class="row"><span>Vs ${p.year}</span><span class="num" style="color:${ev>0?'var(--oraT)':'var(--vio)'}">${eur(p.imp)} → ${sgn(ev)}</span></div>`:''}
+   ${s.regs.length?`<p class="tip">Les régularisations concernent en général les revenus de l'année d'avant. Elles sont comptées l'année où tu les as payées ou reçues.</p>`:''}</div>`;
 }
 function primeCard(s){
   const types=Object.keys(s.pb);if(!types.length)return'';
@@ -420,6 +446,16 @@ function primeCard(s){
     <div style="text-align:right"><span class="num">${eur(x.brut)}</span><br><small style="font-size:12px;font-weight:700;color:${!isFinite(ev)?'var(--mut)':ev<0?'var(--oraT)':'var(--vio)'}">${isFinite(ev)?sgn(ev)+' vs '+s.prev.year:o?'':'nouvelle'}</small></div></div>`}).join('')}
   <div class="ptype"><div class="nm"><b>Total des primes</b></div><div style="text-align:right"><span class="num"><b>${eur(s.pbTotal)}</b></span>${pp&&s.prev.pbTotal?`<br><small style="font-size:12px;font-weight:700;color:${s.pbTotal<s.prev.pbTotal?'var(--oraT)':'var(--vio)'}">${sgn(s.pbTotal/s.prev.pbTotal-1)} vs ${s.prev.year}</small>`:''}</div></div>
   ${s.n<12?`<p class="tip">Année en cours : certaines primes ne sont peut-être pas encore tombées.</p>`:''}</div>`;
+}
+function impHist(all){
+  const ys=all.filter(s=>s.impN||s.regs.length);if(!ys.length)return'';
+  return `<div class="card"><div class="ttl">Impôts par année</div>
+   <div style="overflow-x:auto"><table class="ytable ptable"><thead><tr><th>Année</th><th>Paie</th><th>Régul.</th><th>Total</th><th>Taux</th></tr></thead><tbody>
+   ${ys.slice().reverse().map(s=>`<tr><td>${s.year}${s.impN<s.n?`<br><small style="color:var(--mut);font-weight:500">${s.impN}/${s.n} mois</small>`:''}</td><td>${eur(s.pas)}</td>
+     <td style="color:${s.regul>0?'var(--oraT)':s.regul<0?'var(--vio)':'var(--mut)'}">${s.regul?(s.regul>0?'+':'−')+eur(Math.abs(s.regul)):'—'}</td>
+     <td><b>${eur(s.imp)}</b></td><td>${s.impKnown?pct(s.taux):'—'}</td></tr>`).join('')}
+   </tbody></table></div>
+   <p class="tip">Régul. : ce que les impôts t'ont repris (+) ou remboursé (−) en dehors de la fiche de paie.</p></div>`;
 }
 function primeHist(all){
   const ys=all.filter(s=>s.pbTotal>0);if(!ys.length)return'';
@@ -471,12 +507,13 @@ function pick(y){sel=y;renderYear();$('#htitle').textContent='Ton année '+y}
 function renderHist(){
   const all=allStats(),el=$('#v-hist');
   if(!all.length){el.innerHTML='<div class="empty"><h2>Historique vide</h2><p>Saisis un mois avec le bouton « Ajouter ».</p></div>';return}
-  const tot=all.reduce((a,s)=>({net:a.net+s.total,primes:a.primes+s.primes,imp:a.imp+(isFinite(s.imp)?s.imp:0),impOk:a.impOk&&isFinite(s.imp)}),{net:0,primes:0,imp:0,impOk:true});
+  const tot=all.reduce((a,s)=>({net:a.net+s.total,primes:a.primes+s.primes,imp:a.imp+(isFinite(s.imp)?s.imp:0),impOk:a.impOk&&s.impKnown}),{net:0,primes:0,imp:0,impOk:true});
   const first=all[0];
   el.innerHTML=`
   <div class="card" style="margin-top:14px"><div class="ttl">Net par année</div>${yearChart(all)}
     <div class="legrow"><span><i class="dot" style="background:#4c3bc9"></i>Salaire habituel</span><span><i class="dot" style="background:#2bb3a0"></i>Primes</span><span>* année incomplète</span></div></div>
   <div class="card"><div class="ttl">Salaire habituel · net par mois</div>${habChart(all)}</div>
+  ${impHist(all)}
   ${primeHist(all)}
   <div class="card"><div class="ttl">Année par année</div>
     <table class="ytable"><thead><tr><th>Année</th><th>Net</th><th>Habituel</th><th>Vs N−1*</th></tr></thead><tbody>
@@ -488,7 +525,7 @@ function renderHist(){
     <div class="ttl">Depuis ${first.year}</div>
     <div class="row"><span>Net avant impôt cumulé</span><span class="num">${eur(tot.net)}</span></div>
     <div class="row"><span>Dont primes</span><span class="num" style="color:var(--teaT)">${eur(tot.primes)}</span></div>
-    <div class="row"><span>Impôts payés</span><span class="num" style="color:var(--oraT)">${tot.impOk?eur(tot.imp):'taux à compléter'}</span></div>
+    <div class="row"><span>Impôts payés</span><span class="num" style="color:var(--oraT)">${tot.imp?eur(tot.imp)+(tot.impOk?'':' (incomplet)'):'à compléter'}</span></div>
   </div>
   <p class="tip" style="text-align:center;margin:14px 24px">Le salaire habituel est la moyenne des mois sans prime. Un mois est compté « avec prime » s'il dépasse de 30 % le mois médian de l'année ; tu peux corriger mois par mois.</p>`;
 }
@@ -531,6 +568,7 @@ function openForm(k){
   const e=k&&DB.months[k];editing=e?k:null;
   F('title').textContent=e?'Modifier '+MOISL[+k.slice(5)-1]+' '+k.slice(0,4):'Saisir un mois';
   F('month').value=k||nextMonth();
+  F('regt').value=e&&e.regul?(e.regul>0?'plus':'moins'):'none';F('rega').value=e&&e.regul?Math.abs(e.regul):'';
   F('net').value=e?e.net:'';F('imp').value=e&&e.imp!=null?e.imp:'';F('brut').value=e&&e.brut?e.brut:'';F('note').value=e&&e.note||'';
   F('prime').value=!e||e.prime==null?'auto':e.prime?'oui':'non';
   fPrimes=(e&&e.primes||[]).map(p=>({...p}));
@@ -565,7 +603,8 @@ F('save').onclick=()=>{
   if(k!==editing&&DB.months[k]&&!confirm('Ce mois existe déjà. Le remplacer ?'))return;
   if(editing&&editing!==k)delete DB.months[editing];
   const p=F('prime').value;
-  const e={net};if(F('imp').value!=='')e.imp=+F('imp').value;if(+F('brut').value)e.brut=+F('brut').value;
+  const e={net};if(F('imp').value!=='')e.imp=+F('imp').value;
+  if(F('regt').value!=='none'&&+F('rega').value>0)e.regul=(F('regt').value==='plus'?1:-1)*Math.round(+F('rega').value*100)/100;if(+F('brut').value)e.brut=+F('brut').value;
   if(p!=='auto')e.prime=p==='oui';if(F('note').value.trim())e.note=F('note').value.trim();
   const pr=fPrimes.filter(x=>+x.brut>0).map(x=>({type:x.type,brut:Math.round(+x.brut*100)/100}));if(pr.length)e.primes=pr;
   DB.months[k]=e;sel=+k.slice(0,4);commit();$('#mForm').classList.remove('on');
