@@ -189,7 +189,7 @@ code{background:#fff;padding:1px 5px;border-radius:5px;font-size:12px}
     <div><label for="f-th">Taux horaire brut (€/h)</label><input id="f-th" type="number" inputmode="decimal" step="0.0001"></div>
     <div><label for="f-coef">Coefficient</label><input id="f-coef" type="number" inputmode="numeric" step="1"></div>
   </div>
-  <label>Primes du mois <small>— montant brut, comme sur la fiche de paie</small></label>
+  <label>Primes du mois <small>— montant brut (net pour intéressement / participation)</small></label>
   <div id="f-primes"></div>
   <button type="button" class="addp" id="f-addp">+ Ajouter une prime</button>
   <label for="f-prime">Ce mois contient une prime ?</label>
@@ -286,11 +286,15 @@ function ls(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return nu
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function norm(d){d={...EMPTY(),...(d||{})};d.months=d.months||{};d.taux=d.taux||{};if(!Array.isArray(d.primeTypes)||!d.primeTypes.length)d.primeTypes=[...PRIME_TYPES];
   if(!Array.isArray(d.monthlyTypes))d.monthlyTypes=[];
+  if(!Array.isArray(d.netTypes))d.netTypes=[];
   if(!d.mig1){if(!d.primeTypes.includes(ANC))d.primeTypes.push(ANC);d.mig1=true}
   if(!d.mig2){d.monthlyTypes=d.monthlyTypes.filter(t=>t!==ANC);d.mig2=true}
+  if(!d.mig4){d.primeTypes.forEach(t=>{if(/int[ée]ressement|participation/i.test(t)&&!d.netTypes.includes(t))d.netTypes.push(t)});d.mig4=true}
   if(!d.mig3){if(!d.primeTypes.includes(HS))d.primeTypes.push(HS);d.mig3=true}
   return d}
 const isMonthly=t=>(data().monthlyTypes||[]).includes(t);
+const isNet=t=>(data().netTypes||[]).includes(t);
+const NETRE=/int[ée]ressement|participation/i;
 function ptypes(){const d=data(),s=new Set(d.primeTypes);Object.values(d.months).forEach(e=>(e.primes||[]).forEach(p=>s.add(p.type)));return[...s]}
 const pcol=t=>PCOL[ptypes().indexOf(t)%PCOL.length];
 const $=s=>document.querySelector(s);
@@ -312,7 +316,7 @@ function yearStats(y){
   const d=data(),t=+d.taux[y];
   const list=[];for(let m=1;m<=12;m++){const e=d.months[key(y,m)];if(e&&+e.net)list.push({m,...e,net:+e.net})}
   const med=median(list.map(e=>e.net));
-  list.forEach(e=>{e.isPrime=e.prime===true||(e.prime==null&&((e.primes||[]).some(p=>!isMonthly(p.type))||(list.length>=3&&e.net>PRIME_SEUIL*med)));
+  list.forEach(e=>{e.isPrime=e.prime===true||(e.prime==null&&((e.primes||[]).some(p=>!isMonthly(p.type)&&!isNet(p.type))||(list.length>=3&&e.net>PRIME_SEUIL*med)));
     e.impV=e.imp!=null&&e.imp!==''?+e.imp:(isFinite(t)&&t>0?e.net*t/100:NaN)});
   const normal=list.filter(e=>!e.isPrime);
   const hab=normal.length?normal.reduce((a,e)=>a+e.net,0)/normal.length:median(list.map(e=>e.net));
@@ -329,8 +333,9 @@ function yearStats(y){
   const brut=brutList.length===list.length&&list.length?brutList.reduce((a,e)=>a+ +e.brut,0):NaN;
   const cot=isFinite(brut)?brut-total:NaN;
   const pb={};list.forEach(e=>(e.primes||[]).forEach(p=>{if(!pb[p.type])pb[p.type]={brut:0,months:[]};pb[p.type].brut+=+p.brut||0;if(!pb[p.type].months.includes(e.m))pb[p.type].months.push(e.m)}));
-  const pbTotal=Object.values(pb).reduce((a,x)=>a+x.brut,0);
-  return {year:y,pb,pbTotal,list,n:list.length,byM:Object.fromEntries(list.map(e=>[e.m,e])),total,hab,primes,
+  const pbTotal=Object.entries(pb).filter(([t])=>!isNet(t)).reduce((a,[,x])=>a+x.brut,0);
+  const pnTotal=Object.entries(pb).filter(([t])=>isNet(t)).reduce((a,[,x])=>a+x.brut,0);
+  return {year:y,pb,pbTotal,pnTotal,list,n:list.length,byM:Object.fromEntries(list.map(e=>[e.m,e])),total,hab,primes,
     imp,pas,impN,regs,regul,zeroM,impKnown,
     taux:impKnown&&total?imp/total:(netKnown?pas/netKnown:NaN),tauxPas:netKnown?pas/netKnown:NaN,
     apres:total-(isFinite(imp)?imp:0),brut,cot,joursImp:impKnown&&total?imp/total*365:(netKnown?pas/netKnown*365:NaN)};
@@ -494,11 +499,13 @@ function primeCard(s){
   const types=Object.keys(s.pb);if(!types.length)return'';
   types.sort((a,b)=>s.pb[b].brut-s.pb[a].brut);
   const pp=s.prev&&s.prev.pb;
-  return `<div class="card"><div class="ttl">Primes ${s.year} · brut</div>
+  const tot=(lbl,v,o)=>v?`<div class="ptype"><div class="nm"><b>${lbl}</b></div><div style="text-align:right"><span class="num"><b>${eur(v)}</b></span>${o?`<br><small style="font-size:12px;font-weight:700;color:${v<o?'var(--oraT)':'var(--vio)'}">${sgn(v/o-1)} vs ${s.prev.year}</small>`:''}</div></div>`:'';
+  return `<div class="card"><div class="ttl">Primes ${s.year}</div>
   ${types.map(t=>{const x=s.pb[t],o=pp&&pp[t];const ev=o&&o.brut?x.brut/o.brut-1:NaN;
     return `<div class="ptype"><i class="dot" style="background:${pcol(t)};width:12px;height:12px"></i><div class="nm"><span>${esc(t)}</span><small>${isMonthly(t)?'chaque mois · '+x.months.length+' mois · '+eur(x.brut/x.months.length)+'/mois':x.months.map(m=>MOISL[m-1]).join(', ')}</small></div>
-    <div style="text-align:right"><span class="num">${eur(x.brut)}</span><br><small style="font-size:12px;font-weight:700;color:${!isFinite(ev)?'var(--mut)':ev<0?'var(--oraT)':'var(--vio)'}">${isFinite(ev)?sgn(ev)+' vs '+s.prev.year:o?'':'nouvelle'}</small></div></div>`}).join('')}
-  <div class="ptype"><div class="nm"><b>Total des primes</b></div><div style="text-align:right"><span class="num"><b>${eur(s.pbTotal)}</b></span>${pp&&s.prev.pbTotal?`<br><small style="font-size:12px;font-weight:700;color:${s.pbTotal<s.prev.pbTotal?'var(--oraT)':'var(--vio)'}">${sgn(s.pbTotal/s.prev.pbTotal-1)} vs ${s.prev.year}</small>`:''}</div></div>
+    <div style="text-align:right"><span class="num">${eur(x.brut)}</span> <small style="font-size:11px;color:var(--mut)">${isNet(t)?'net':'brut'}</small><br><small style="font-size:12px;font-weight:700;color:${!isFinite(ev)?'var(--mut)':ev<0?'var(--oraT)':'var(--vio)'}">${isFinite(ev)?sgn(ev)+' vs '+s.prev.year:o?'':'nouvelle'}</small></div></div>`}).join('')}
+  ${tot('Total primes brutes',s.pbTotal,pp&&s.prev.pbTotal)}
+  ${tot('Total versé en net',s.pnTotal,pp&&s.prev.pnTotal)}
   ${s.n<12?`<p class="tip">Année en cours : certaines primes ne sont peut-être pas encore tombées.</p>`:''}</div>`;
 }
 function impHist(all){
@@ -512,11 +519,13 @@ function impHist(all){
    <p class="tip">Régul. : ce que les impôts t'ont repris (+) ou remboursé (−) en dehors de la fiche de paie.</p></div>`;
 }
 function primeHist(all){
-  const ys=all.filter(s=>s.pbTotal>0);if(!ys.length)return'';
-  const types=ptypes().filter(t=>ys.some(s=>s.pb[t]));
-  const show=ys.slice(-4);
+  const ysAll=all.filter(s=>s.pbTotal>0||s.pnTotal>0);if(!ysAll.length)return'';
+  const ys=ysAll.filter(s=>s.pbTotal>0);
+  const allTypes=ptypes().filter(t=>ysAll.some(s=>s.pb[t]));
+  const types=allTypes.filter(t=>!isNet(t));
+  const show=ysAll.slice(-4);
   const W=330,H=190,top=22,bot=22,left=34,ch=H-top-bot,n=ys.length,gap=n>7?6:12,bw=Math.min(44,(W-left-4)/n-gap);
-  const max=axisMax(Math.max(...ys.map(s=>s.pbTotal))*1.1);
+  const max=axisMax(Math.max(1,...ys.map(s=>s.pbTotal))*1.1);
   let svg=`<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Primes brutes par année">`;
   for(let i=0;i<=4;i++){const yy=top+ch*(1-i/4);svg+=`<line x1="${left}" x2="${W}" y1="${yy}" y2="${yy}" stroke="#f0eefb"/><text class="amt" x="${left-5}" y="${yy+3}" font-size="9" fill="#554e80" text-anchor="end">${(max*i/4/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})}k</text>`}
   ys.forEach((s,i)=>{const x=left+6+i*(bw+gap);let base=top+ch;
@@ -525,11 +534,13 @@ function primeHist(all){
   svg+='</svg>';
   const cell=(s,t)=>{const v=s.pb[t]?s.pb[t].brut:0,p=s.prev&&s.prev.pb[t]?s.prev.pb[t].brut:0;
     return `<td>${v?eur(v):'—'}${v&&p?`<br><small style="font-size:11px;font-weight:700;color:${v<p?'var(--oraT)':'var(--vio)'}">${sgn(v/p-1,0)}</small>`:''}</td>`};
-  return `<div class="card"><div class="ttl">Primes par année · brut</div>${svg}
+  return `<div class="card"><div class="ttl">Primes par année</div>${ys.length?`<div class="ttl" style="margin:0;font-size:10px">Primes brutes</div>${svg}`:''}
    <div class="legrow">${types.map(t=>`<span><i class="dot" style="background:${pcol(t)}"></i>${esc(t)}</span>`).join('')}</div>
    <div style="overflow-x:auto;margin-top:10px"><table class="ytable ptable"><thead><tr><th>Prime</th>${show.map(s=>`<th>${s.year}${s.n<12?'*':''}</th>`).join('')}</tr></thead><tbody>
    ${types.map(t=>`<tr><td>${esc(t.replace(/^Prime /,''))}</td>${show.map(s=>cell(s,t)).join('')}</tr>`).join('')}
-   <tr><td><b>Total</b></td>${show.map(s=>`<td><b>${eur(s.pbTotal)}</b></td>`).join('')}</tr></tbody></table></div>
+   ${types.length?`<tr><td><b>Total brut</b></td>${show.map(s=>`<td><b>${eur(s.pbTotal)}</b></td>`).join('')}</tr>`:''}
+   ${allTypes.filter(isNet).map(t=>`<tr><td>${esc(t.replace(/^Prime /,''))} <small style="color:var(--mut);font-weight:500">net</small></td>${show.map(s=>cell(s,t)).join('')}</tr>`).join('')}
+   ${allTypes.some(isNet)?`<tr><td><b>Total net</b></td>${show.map(s=>`<td><b>${s.pnTotal?eur(s.pnTotal):'—'}</b></td>`).join('')}</tr>`:''}</tbody></table></div>
    <p class="tip">Évolution calculée par rapport à l'année précédente.</p></div>`;
 }
 function ancien(st){if(!st)return'';const a=new Date(st+'-01'),n=new Date();const mo=(n.getFullYear()-a.getFullYear())*12+n.getMonth()-a.getMonth();if(mo<1)return'';
@@ -641,9 +652,9 @@ function drawPrimes(){
   const types=ptypes();
   F('primes').innerHTML=fPrimes.map((p,i)=>`<div class="prow">
     <select data-i="${i}" aria-label="Type de prime">${[...new Set([...types,p.type].filter(Boolean))].map(t=>`<option ${t===p.type?'selected':''}>${esc(t)}</option>`).join('')}</select>
-    <input data-i="${i}" type="number" inputmode="decimal" step="0.01" placeholder="Brut €" value="${p.brut??''}" aria-label="Montant brut">
+    <input data-i="${i}" type="number" inputmode="decimal" step="0.01" placeholder="${isNet(p.type)?'Net €':'Brut €'}" value="${p.brut??''}" aria-label="Montant">
     <button type="button" class="x" data-i="${i}" aria-label="Retirer cette prime">×</button></div>`).join('');
-  F('primes').querySelectorAll('select').forEach(s=>s.onchange=()=>fPrimes[s.dataset.i].type=s.value);
+  F('primes').querySelectorAll('select').forEach(s=>s.onchange=()=>{fPrimes[s.dataset.i].type=s.value;drawPrimes()});
   F('primes').querySelectorAll('input').forEach(s=>s.oninput=()=>fPrimes[s.dataset.i].brut=s.value);
   F('primes').querySelectorAll('.x').forEach(b=>b.onclick=()=>{fPrimes.splice(+b.dataset.i,1);drawPrimes()});
 }
@@ -689,15 +700,17 @@ function openSet(){
 $('#gear').onclick=openSet;
 function drawPtypes(){
   const used=t=>Object.values(DB.months).some(e=>(e.primes||[]).some(p=>p.type===t));
-  $('#s-ptypes').innerHTML=DB.primeTypes.map((t,i)=>`<div class="ptype"><i class="dot" style="background:${PCOL[i%PCOL.length]};width:12px;height:12px"></i><div class="nm">${esc(t)}<label style="margin:2px 0 0;font-weight:500;font-size:12px;display:flex;gap:6px;align-items:center"><input type="checkbox" data-m="${i}" ${(DB.monthlyTypes||[]).includes(t)?'checked':''} style="width:18px;height:18px;padding:0"> versée chaque mois</label></div>
+  $('#s-ptypes').innerHTML=DB.primeTypes.map((t,i)=>`<div class="ptype"><i class="dot" style="background:${PCOL[i%PCOL.length]};width:12px;height:12px"></i><div class="nm">${esc(t)}<label style="margin:2px 0 0;font-weight:500;font-size:12px;display:flex;gap:6px;align-items:center"><input type="checkbox" data-m="${i}" ${(DB.monthlyTypes||[]).includes(t)?'checked':''} style="width:18px;height:18px;padding:0"> versée chaque mois</label><label style="margin:2px 0 0;font-weight:500;font-size:12px;display:flex;gap:6px;align-items:center"><input type="checkbox" data-n="${i}" ${(DB.netTypes||[]).includes(t)?'checked':''} style="width:18px;height:18px;padding:0"> montant en net</label></div>
     <button class="x" style="width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:#fff;color:#9b1c1c" data-i="${i}" aria-label="Supprimer ${esc(t)}">×</button></div>`).join('');
   $('#s-ptypes').querySelectorAll('input[data-m]').forEach(c=>c.onchange=()=>{const t=DB.primeTypes[+c.dataset.m];
     DB.monthlyTypes=(DB.monthlyTypes||[]).filter(x=>x!==t);if(c.checked)DB.monthlyTypes.push(t);commit()});
+  $('#s-ptypes').querySelectorAll('input[data-n]').forEach(c=>c.onchange=()=>{const t=DB.primeTypes[+c.dataset.n];
+    DB.netTypes=(DB.netTypes||[]).filter(x=>x!==t);if(c.checked)DB.netTypes.push(t);commit()});
   $('#s-ptypes').querySelectorAll('button').forEach(b=>b.onclick=()=>{const t=DB.primeTypes[+b.dataset.i];
     if(used(t))return alert('Ce type est utilisé dans tes mois : il reste dans la liste.');
     DB.primeTypes.splice(+b.dataset.i,1);commit();drawPtypes()});
 }
-$('#s-padd').onclick=()=>{const v=$('#s-pnew').value.trim();if(!v||DB.primeTypes.includes(v))return;DB.primeTypes.push(v);$('#s-pnew').value='';commit();drawPtypes()};
+$('#s-padd').onclick=()=>{const v=$('#s-pnew').value.trim();if(!v||DB.primeTypes.includes(v))return;DB.primeTypes.push(v);if(NETRE.test(v)){DB.netTypes=DB.netTypes||[];DB.netTypes.push(v)}$('#s-pnew').value='';commit();drawPtypes()};
 $('#s-close').onclick=()=>$('#mSet').classList.remove('on');
 $('#s-url').onchange=e=>{SET.url=e.target.value.trim();lsSet(SKEY,SET)};
 $('#s-key').onchange=e=>{SET.key=e.target.value.trim();lsSet(SKEY,SET)};
