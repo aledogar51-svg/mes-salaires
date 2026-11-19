@@ -145,6 +145,14 @@ select{width:100%;background:#fff;border:1px solid var(--line);color:var(--ink);
 .mtable tr{cursor:pointer}.mtable tr.mt-pr td:first-child{color:var(--teaT)}
 .mtable tr.mt-tot td{font-weight:800;border-top:2px solid #e4e0fa}
 .hide .mtable td:not(:first-child){filter:blur(8px)}
+.chtable{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums;margin-top:4px}
+.chtable td{padding:6px 3px;vertical-align:baseline}
+.chtable tr.first td{border-top:1px solid #f0eefb;padding-top:10px}
+.chtable .d{width:74px;font-weight:700;white-space:nowrap}
+.chtable .k{width:38px;color:var(--mut);font-size:12px}
+.chtable .vv{text-align:right;white-space:nowrap;font-weight:600}
+.chtable .p{width:60px;text-align:right;font-weight:700;white-space:nowrap}
+.hide .chtable .vv,.hide .chtable .p{filter:blur(8px)}
 code{background:#fff;padding:1px 5px;border-radius:5px;font-size:12px}
 </style>
 </head>
@@ -485,9 +493,21 @@ function thCard(s){
   return `<div class="card rows"><div class="ttl">Taux horaire et coefficient ${s.year}</div>
    ${isFinite(th)?`<div class="row"><span>Taux horaire brut</span><span class="num">${thf(th)}${isFinite(th0)&&th!==th0?` <small style="color:${th<th0?'var(--oraT)':'var(--vio)'};font-weight:700">${sgn(th/th0-1)}</small>`:''}</span></div>`:''}
    ${isFinite(co)?`<div class="row"><span>Coefficient</span><span class="num">${co}${isFinite(co0)&&co!==co0?` <small style="color:var(--vio);font-weight:700">(${co0} avant)</small>`:''}</span></div>`:''}
-   ${chY.map(c=>`<div class="row"><span>${MOIS[c.m-1]} · ${chLabel(c)}</span><span class="num">${isFinite(c.oldTh)&&c.newTh!==c.oldTh?sgn(c.newTh/c.oldTh-1):''}</span></div>`).join('')}
+   ${chY.length?`<div style="font-size:12px;color:var(--mut);font-weight:600;margin-top:10px">Changements dans l'année</div>${chRows(chY,false)}`:''}
    ${!chY.length&&inY.length?`<div class="row"><span>Changements dans l'année</span><span class="num">aucun</span></div>`:''}
    ${isFinite(th0)?`<p class="tip">Évolution comparée au dernier taux de ${s.year-1}.</p>`:''}</div>`;
+}
+function chRows(list,withYear){
+  if(!list.length)return'';
+  const n2=v=>v.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:4});
+  return `<table class="chtable"><tbody>${list.map(c=>{
+    const r=[];
+    if(isFinite(c.oldTh)&&c.newTh!==c.oldTh){const ev=c.newTh/c.oldTh-1;
+      r.push(`<td class="k">Taux</td><td class="vv">${n2(c.oldTh)} → ${n2(c.newTh)} €</td><td class="p" style="color:${ev<0?'var(--oraT)':'var(--vio)'}">${sgn(ev)}</td>`)}
+    if(isFinite(c.oldCo)&&c.newCo!==c.oldCo){const dd=c.newCo-c.oldCo;
+      r.push(`<td class="k">Coef</td><td class="vv">${c.oldCo} → ${c.newCo}</td><td class="p" style="color:${dd<0?'var(--oraT)':'var(--teaT)'}">${dd>0?'+':''}${dd}</td>`)}
+    return r.map((x,i)=>`<tr class="${i?'':'first'}">${i?'<td class="d"></td>':`<td class="d">${MOIS[c.m-1]}${withYear?' '+c.y:''}</td>`}${x}</tr>`).join('');
+  }).join('')}</tbody></table>`;
 }
 function chLabel(c){const a=[];if(isFinite(c.oldTh)&&c.newTh!==c.oldTh)a.push(thf(c.oldTh).replace(' €/h','')+' → '+thf(c.newTh));
   if(isFinite(c.oldCo)&&c.newCo!==c.oldCo)a.push('coef '+c.oldCo+' → '+c.newCo);return a.join(' · ')}
@@ -510,9 +530,13 @@ function thHist(){
   const first=v[0],last=v[v.length-1];
   return `<div class="card"><div class="ttl">Taux horaire brut · évolution</div>${svg}
    <div class="rows" style="margin-top:6px">
-   <div class="row"><span>Depuis ${MOIS[first.m-1].toLowerCase()} ${first.y}</span><span class="num">${thf(first.th)} → ${thf(last.th)} <small style="color:var(--vio);font-weight:700">${sgn(last.th/first.th-1)}</small></span></div>
-   ${ch.slice().reverse().map(c=>`<div class="row"><span style="white-space:nowrap">${MOIS[c.m-1]} ${c.y}</span><span class="num" style="font-size:13px">${chLabel(c)}${isFinite(c.oldTh)&&c.newTh!==c.oldTh?` <small style="color:${c.newTh<c.oldTh?'var(--oraT)':'var(--vio)'};font-weight:700">${sgn(c.newTh/c.oldTh-1)}</small>`:''}</span></div>`).join('')}
-   </div></div>`;
+   <div style="display:flex;align-items:center;gap:14px;padding:6px 0 10px">
+     <span class="num" style="font-family:var(--head);font-size:26px;font-weight:700;color:${last.th<first.th?'var(--oraT)':'var(--vio)'}">${sgn(last.th/first.th-1)}</span>
+     <span style="font-size:13px;color:var(--mut);line-height:1.4">depuis ${MOIS[first.m-1].toLowerCase()} ${first.y}<br><b class="num" style="color:var(--ink)">${thf(first.th)} → ${thf(last.th)}</b></span>
+   </div>
+   </div>
+   ${ch.length?`<div style="font-size:12px;color:var(--mut);font-weight:600;margin-top:8px">Tous les changements</div>${chRows(ch.slice().reverse(),true)}`:''}
+   </div>`;
 }
 function impCard(s){
   if(!s.impN&&!s.regs.length)return `<div class="card"><div class="ttl">Impôts ${s.year}</div><p class="tip" style="margin-top:0">Pas encore d'impôt saisi. Mets le montant prélevé dans chaque mois, ou ton taux dans les réglages.</p></div>`;
