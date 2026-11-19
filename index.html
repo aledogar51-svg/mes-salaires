@@ -157,7 +157,10 @@ select{width:100%;background:#fff;border:1px solid var(--line);color:var(--ink);
 .pyhead{font-size:11px;font-weight:700;color:var(--mut);text-align:right;padding:10px 0 4px;border-bottom:1px solid #f0eefb}
 .pblock{padding:9px 0;border-bottom:1px solid #f0eefb}
 .pblock.tot{border-bottom:0;border-top:2px solid #e4e0fa}
-.pname{font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.pname{font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;margin-bottom:4px;position:sticky;left:0;background:#fff;padding-right:8px}
+.pscroll{overflow-x:auto;margin-top:8px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.pscroll::-webkit-scrollbar{display:none}
+.pyears .yl{display:block;font-size:10.5px;font-weight:700;color:var(--mut);margin-bottom:1px}
 .pname small{font-weight:500;color:var(--mut);font-size:11px}
 .pyears>div{text-align:right;font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap;line-height:1.35}
 .pyears small{display:block;font-size:11px;font-weight:700;min-height:15px}
@@ -594,7 +597,7 @@ function primeHist(all){
   const ys=ysAll.filter(s=>s.pbTotal>0);
   const allTypes=ptypes().filter(t=>ysAll.some(s=>s.pb[t]));
   const types=allTypes.filter(t=>!isNet(t));
-  const show=ysAll.slice(-4);
+  const show=ysAll;
   const W=330,H=190,top=22,bot=22,left=34,ch=H-top-bot,n=ys.length,gap=n>7?6:12,bw=Math.min(44,(W-left-4)/n-gap);
   const max=axisMax(Math.max(1,...ys.map(s=>s.pbTotal))*1.1);
   let svg=`<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Primes brutes par année">`;
@@ -603,19 +606,22 @@ function primeHist(all){
     types.forEach(t=>{const v=s.pb[t]?s.pb[t].brut:0;const hh=v/max*ch;if(hh>0){svg+=`<rect x="${x}" y="${base-hh}" width="${bw}" height="${Math.max(hh-1,0.5)}" fill="${pcol(t)}" opacity="${s.n<12?0.6:1}"><title>${esc(t)} ${s.year} : ${eur(v)}</title></rect>`;base-=hh}});
     svg+=`<text class="amt" x="${x+bw/2}" y="${base-5}" font-size="9" font-weight="700" fill="#1b1640" text-anchor="middle">${(s.pbTotal/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})}k</text><text x="${x+bw/2}" y="${H-6}" font-size="10" fill="#554e80" text-anchor="middle">${s.year}${s.n<12?'*':''}</text>`});
   svg+='</svg>';
-  const cols=`grid-template-columns:repeat(${show.length},minmax(0,1fr))`;
+  const cols=`grid-template-columns:repeat(${show.length},minmax(74px,1fr))`;
+  const yl=s=>`<span class="yl">${s.year}${s.n<12?'*':''}</span>`;
   const ev=(v,p)=>v&&p?`<small style="color:${v<p?'var(--oraT)':'var(--vio)'}">${sgn(v/p-1,0)}</small>`:'<small></small>';
   const cell=(s,t)=>{const v=s.pb[t]?s.pb[t].brut:0,p=s.prev&&s.prev.pb[t]?s.prev.pb[t].brut:0;
-    return `<div>${v?eur(v):'<span style="color:#a8a3c7">—</span>'}${ev(v,p)}</div>`};
+    return `<div>${yl(s)}${v?eur(v):'<span style="color:#a8a3c7">—</span>'}${ev(v,p)}</div>`};
   const block=(name,cells,cls='',sub='',dot='')=>`<div class="pblock ${cls}"><div class="pname">${dot?`<i class="dot" style="background:${dot}"></i>`:''}${name}${sub?` <small>${sub}</small>`:''}</div><div class="pyears" style="${cols}">${cells}</div></div>`;
-  const totCells=f=>show.map(s=>{const v=f(s),p=s.prev&&s.n===12?f(s.prev):0;return `<div><b>${v?eur(v):'—'}</b>${ev(v,p)}</div>`}).join('');
+  const totCells=f=>show.map(s=>{const v=f(s),p=s.prev&&s.n===12?f(s.prev):0;return `<div>${yl(s)}<b>${v?eur(v):'—'}</b>${ev(v,p)}</div>`}).join('');
   return `<div class="card"><div class="ttl">Primes par année</div>${ys.length?`<div class="ttl" style="margin:0;font-size:10px">Primes brutes</div>${svg}`:''}
    <div class="legrow">${types.map(t=>`<span><i class="dot" style="background:${pcol(t)}"></i>${esc(t)}</span>`).join('')}</div>
-   <div class="pyhead" style="${cols};margin-top:8px">${show.map(s=>`<span>${s.year}${s.n<12?'*':''}</span>`).join('')}</div>
+   ${show.length>4?`<p class="tip" style="margin:8px 0 0">← fais glisser pour voir les années précédentes</p>`:''}
+   <div class="pscroll"><div style="min-width:${show.length*78}px">
    ${types.map(t=>block(esc(t),show.map(s=>cell(s,t)).join(''),'','brut',pcol(t))).join('')}
    ${types.length?block('<b>Total brut</b>',totCells(s=>s.pbTotal),'tot'):''}
    ${allTypes.filter(isNet).map(t=>block(esc(t),show.map(s=>cell(s,t)).join(''),'','net','#b7791f')).join('')}
    ${allTypes.some(isNet)?block('<b>Total net</b>',totCells(s=>s.pnTotal),'tot'):''}
+   </div></div>
    <p class="tip">Évolution calculée par rapport à l'année précédente.</p></div>`;
 }
 function ancien(st){if(!st)return'';const a=new Date(st+'-01'),n=new Date();const mo=(n.getFullYear()-a.getFullYear())*12+n.getMonth()-a.getMonth();if(mo<1)return'';
@@ -897,7 +903,8 @@ let view='year';
 document.querySelectorAll('nav button[data-v]').forEach(b=>b.onclick=()=>{
   view=b.dataset.v;
   document.querySelectorAll('nav button[data-v]').forEach(x=>x.classList.toggle('on',x===b));
-  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+view));setTitle();window.scrollTo(0,0)});
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+view));setTitle();window.scrollTo(0,0);
+  document.querySelectorAll('.pscroll').forEach(e=>e.scrollLeft=e.scrollWidth)});
 $('#addBtn').onclick=()=>openForm();
 
 /* ---------- masquage + code ---------- */
@@ -949,6 +956,7 @@ function renderAll(){
   $('#hello').textContent=(d.name?'Bonjour '+d.name:'Bonjour')+(d.company?' · '+d.company:'');
   $('#demoBanner').innerHTML=DEMO?'<div class="banner"><span>Mode démo : chiffres fictifs, rien n\'est enregistré.</span><button onclick="stopDemo()">Quitter</button></div>':'';
   renderYear();renderHist();setTitle();
+  document.querySelectorAll('.pscroll').forEach(e=>e.scrollLeft=e.scrollWidth);
 }
 renderAll();
 if(SET.connected&&ready())connect();
