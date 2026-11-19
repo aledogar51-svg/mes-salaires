@@ -184,6 +184,10 @@ code{background:#fff;padding:1px 5px;border-radius:5px;font-size:12px}
   </div>
   <label for="f-brut">Brut (€) <small>— facultatif</small></label>
   <input id="f-brut" type="number" inputmode="decimal" step="0.01">
+  <div class="two">
+    <div><label for="f-th">Taux horaire brut (€/h)</label><input id="f-th" type="number" inputmode="decimal" step="0.0001"></div>
+    <div><label for="f-coef">Coefficient</label><input id="f-coef" type="number" inputmode="numeric" step="1"></div>
+  </div>
   <label>Primes du mois <small>— montant brut, comme sur la fiche de paie</small></label>
   <div id="f-primes"></div>
   <button type="button" class="addp" id="f-addp">+ Ajouter une prime</button>
@@ -416,6 +420,7 @@ function renderYear(){
     ${isFinite(s.brut)?`<div class="row"><span>Brut · cotisations</span><span class="num">${eur(s.brut)} · ${pct(s.cot/s.brut)}</span></div>`:''}
     <div class="row"><span>Mois saisis</span><span class="num">${s.n} / 12</span></div>
   </div>
+  ${thCard(s)}
   ${impCard(s)}
   ${primeCard(s)}
   <div class="facts">
@@ -424,6 +429,52 @@ function renderYear(){
     ${baisseFact(all)}
     <div class="fact"><div class="ic tea">${I.gift}</div><div><b>${eur(totPrimes)} de primes depuis ${first.year}</b><span>${primeMonths(all)}</span></div></div>
   </div>`;
+}
+function career(){
+  const d=data(),ks=Object.keys(d.months).sort();
+  const pts=ks.map(k=>({k,y:+k.slice(0,4),m:+k.slice(5),th:+d.months[k].th||NaN,coef:+d.months[k].coef||NaN}));
+  const ch=[];let th=NaN,co=NaN;
+  pts.forEach(p=>{const nt=isFinite(p.th)&&p.th!==th&&isFinite(th),nc=isFinite(p.coef)&&p.coef!==co&&isFinite(co);
+    if(nt||nc)ch.push({...p,oldTh:th,oldCo:co,newTh:isFinite(p.th)?p.th:th,newCo:isFinite(p.coef)?p.coef:co});
+    if(isFinite(p.th))th=p.th;if(isFinite(p.coef))co=p.coef});
+  return{pts,ch};
+}
+const thf=v=>isFinite(v)?v.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:4})+' €/h':'—';
+const lastOf=(arr,f)=>{for(let i=arr.length-1;i>=0;i--)if(isFinite(arr[i][f]))return arr[i][f];return NaN};
+function thCard(s){
+  const {pts,ch}=career();const inY=pts.filter(p=>p.y===s.year),before=pts.filter(p=>p.y<s.year);
+  const th=lastOf(inY,'th'),co=lastOf(inY,'coef');if(!isFinite(th)&&!isFinite(co))return'';
+  const th0=lastOf(before,'th'),co0=lastOf(before,'coef');
+  const chY=ch.filter(c=>c.y===s.year);
+  return `<div class="card rows"><div class="ttl">Taux horaire et coefficient ${s.year}</div>
+   ${isFinite(th)?`<div class="row"><span>Taux horaire brut</span><span class="num">${thf(th)}${isFinite(th0)?` <small style="color:${th<th0?'var(--oraT)':'var(--vio)'};font-weight:700">${sgn(th/th0-1)}</small>`:''}</span></div>`:''}
+   ${isFinite(co)?`<div class="row"><span>Coefficient</span><span class="num">${co}${isFinite(co0)&&co!==co0?` <small style="color:var(--vio);font-weight:700">(${co0} avant)</small>`:''}</span></div>`:''}
+   ${chY.map(c=>`<div class="row"><span>${MOIS[c.m-1]} · ${chLabel(c)}</span><span class="num">${isFinite(c.oldTh)&&c.newTh!==c.oldTh?sgn(c.newTh/c.oldTh-1):''}</span></div>`).join('')}
+   ${!chY.length&&inY.length?`<div class="row"><span>Changements dans l'année</span><span class="num">aucun</span></div>`:''}
+   ${isFinite(th0)?`<p class="tip">Évolution comparée au dernier taux de ${s.year-1}.</p>`:''}</div>`;
+}
+function chLabel(c){const a=[];if(isFinite(c.oldTh)&&c.newTh!==c.oldTh)a.push(thf(c.oldTh).replace(' €/h','')+' → '+thf(c.newTh));
+  if(isFinite(c.oldCo)&&c.newCo!==c.oldCo)a.push('coef '+c.oldCo+' → '+c.newCo);return a.join(' · ')}
+function thHist(){
+  const {pts,ch}=career();const v=pts.filter(p=>isFinite(p.th));if(v.length<1)return'';
+  const W=330,H=170,top=24,bot=22,left=40,cw=W-left-8,chh=H-top-bot,n=v.length;
+  const lo=Math.min(...v.map(p=>p.th)),hi=Math.max(...v.map(p=>p.th));
+  const mn=Math.floor(lo*0.97*10)/10,mx=Math.ceil(hi*1.02*10)/10||mn+1;
+  const X=i=>left+4+(n>1?i*(cw-8)/(n-1):cw/2),Y=t=>top+chh*(1-(t-mn)/((mx-mn)||1));
+  let svg=`<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Évolution du taux horaire">`;
+  for(let i=0;i<=3;i++){const t=mn+(mx-mn)*i/3;svg+=`<line x1="${left}" x2="${W}" y1="${Y(t)}" y2="${Y(t)}" stroke="#f0eefb"/><text class="amt" x="${left-5}" y="${Y(t)+3}" font-size="9" fill="#554e80" text-anchor="end">${t.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})}</text>`}
+  let d='';v.forEach((p,i)=>{d+=(i?` H${X(i)} V${Y(p.th)}`:`M${X(i)} ${Y(p.th)}`)});
+  svg+=`<path d="${d}" fill="none" stroke="#4c3bc9" stroke-width="2.5" stroke-linejoin="round"/>`;
+  const yrs=[...new Set(v.map(p=>p.y))];yrs.forEach(y=>{const i=v.findIndex(p=>p.y===y);svg+=`<line x1="${X(i)}" x2="${X(i)}" y1="${top}" y2="${top+chh}" stroke="#e4e0fa" stroke-dasharray="3 3"/><text x="${X(i)+3}" y="${H-6}" font-size="10" fill="#554e80">${y}</text>`});
+  const thCh=ch.filter(c=>isFinite(c.oldTh)&&c.newTh!==c.oldTh);
+  thCh.forEach(c=>{const i=v.findIndex(p=>p.k===c.k);if(i>=0)svg+=`<circle cx="${X(i)}" cy="${Y(c.newTh)}" r="4" fill="#fff" stroke="${c.newTh<c.oldTh?'#e8740c':'#4c3bc9'}" stroke-width="2.5"/>`});
+  svg+='</svg>';
+  const first=v[0],last=v[v.length-1];
+  return `<div class="card"><div class="ttl">Taux horaire brut · évolution</div>${svg}
+   <div class="rows" style="margin-top:6px">
+   <div class="row"><span>Depuis ${MOIS[first.m-1].toLowerCase()} ${first.y}</span><span class="num">${thf(first.th)} → ${thf(last.th)} <small style="color:var(--vio);font-weight:700">${sgn(last.th/first.th-1)}</small></span></div>
+   ${ch.slice().reverse().map(c=>`<div class="row"><span style="white-space:nowrap">${MOIS[c.m-1]} ${c.y}</span><span class="num" style="font-size:13px">${chLabel(c)}${isFinite(c.oldTh)&&c.newTh!==c.oldTh?` <small style="color:${c.newTh<c.oldTh?'var(--oraT)':'var(--vio)'};font-weight:700">${sgn(c.newTh/c.oldTh-1)}</small>`:''}</span></div>`).join('')}
+   </div></div>`;
 }
 function impCard(s){
   if(!s.impN&&!s.regs.length)return `<div class="card"><div class="ttl">Impôts ${s.year}</div><p class="tip" style="margin-top:0">Pas encore d'impôt saisi. Mets le montant prélevé dans chaque mois, ou ton taux dans les réglages.</p></div>`;
@@ -515,6 +566,7 @@ function renderHist(){
   <div class="card" style="margin-top:14px"><div class="ttl">Net par année</div>${yearChart(all)}
     <div class="legrow"><span><i class="dot" style="background:#4c3bc9"></i>Salaire habituel</span><span><i class="dot" style="background:#2bb3a0"></i>Primes</span><span>* année incomplète</span></div></div>
   <div class="card"><div class="ttl">Salaire habituel · net par mois</div>${habChart(all)}</div>
+  ${thHist()}
   ${impHist(all)}
   ${primeHist(all)}
   <div class="card"><div class="ttl">Année par année</div>
@@ -570,6 +622,8 @@ function openForm(k){
   const e=k&&DB.months[k];editing=e?k:null;
   F('title').textContent=e?'Modifier '+MOISL[+k.slice(5)-1]+' '+k.slice(0,4):'Saisir un mois';
   F('month').value=k||nextMonth();
+  {const ks=Object.keys(DB.months).filter(x=>!k||x<k).sort().reverse();const lastTh=ks.map(x=>DB.months[x]).find(x=>x.th),lastCo=ks.map(x=>DB.months[x]).find(x=>x.coef);
+   F('th').value=e?(e.th||''):(lastTh?lastTh.th:'');F('coef').value=e?(e.coef||''):(lastCo?lastCo.coef:'');}
   F('regt').value=e&&e.regul?(e.regul>0?'plus':'moins'):'none';F('rega').value=e&&e.regul?Math.abs(e.regul):'';
   F('net').value=e?e.net:'';F('imp').value=e&&e.imp!=null?e.imp:'';F('brut').value=e&&e.brut?e.brut:'';F('note').value=e&&e.note||'';
   F('prime').value=!e||e.prime==null?'auto':e.prime?'oui':'non';
@@ -606,7 +660,7 @@ F('save').onclick=()=>{
   if(editing&&editing!==k)delete DB.months[editing];
   const p=F('prime').value;
   const e={net};if(F('imp').value!=='')e.imp=+F('imp').value;
-  if(F('regt').value!=='none'&&+F('rega').value>0)e.regul=(F('regt').value==='plus'?1:-1)*Math.round(+F('rega').value*100)/100;if(+F('brut').value)e.brut=+F('brut').value;
+  if(F('regt').value!=='none'&&+F('rega').value>0)e.regul=(F('regt').value==='plus'?1:-1)*Math.round(+F('rega').value*100)/100;if(+F('brut').value)e.brut=+F('brut').value;if(+F('th').value)e.th=+F('th').value;if(+F('coef').value)e.coef=+F('coef').value;
   if(p!=='auto')e.prime=p==='oui';if(F('note').value.trim())e.note=F('note').value.trim();
   const pr=fPrimes.filter(x=>+x.brut>0).map(x=>({type:x.type,brut:Math.round(+x.brut*100)/100}));if(pr.length)e.primes=pr;
   DB.months[k]=e;sel=+k.slice(0,4);commit();$('#mForm').classList.remove('on');
