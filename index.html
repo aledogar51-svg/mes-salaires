@@ -131,6 +131,16 @@ select{width:100%;background:#fff;border:1px solid var(--line);color:var(--ink);
 .ytable td{padding:9px 4px;border-top:1px solid #f0eefb;text-align:right;font-variant-numeric:tabular-nums}
 .ytable td:first-child{font-weight:700}
 
+.prow{display:flex;gap:8px;align-items:center;margin-top:8px}
+.prow select{flex:1.4;padding:11px}.prow input{flex:1;padding:11px}
+.prow .x{width:44px;height:44px;flex-shrink:0;border-radius:12px;border:1px solid var(--line);background:#fff;color:#9b1c1c;font-size:20px}
+.addp{margin-top:8px;min-height:44px;border-radius:12px;border:1px dashed #b9b1ee;background:#fff;color:var(--vio);font-weight:700;width:100%}
+.ptype{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f0eefb;font-size:14px}
+.ptype:last-child{border:0}
+.ptype .nm{flex:1;display:flex;flex-direction:column}
+.ptype .nm small{font-size:12px;color:var(--mut)}
+.hide .ptype .num,.hide .ptable td:not(:first-child){filter:blur(9px)}
+.ptable td:first-child{font-weight:600;white-space:nowrap}
 code{background:#fff;padding:1px 5px;border-radius:5px;font-size:12px}
 </style>
 </head>
@@ -169,9 +179,12 @@ code{background:#fff;padding:1px 5px;border-radius:5px;font-size:12px}
   <input id="f-imp" type="number" inputmode="decimal" step="0.01">
   <label for="f-brut">Brut (€) <small>— facultatif</small></label>
   <input id="f-brut" type="number" inputmode="decimal" step="0.01">
+  <label>Primes du mois <small>— montant brut, comme sur la fiche de paie</small></label>
+  <div id="f-primes"></div>
+  <button type="button" class="addp" id="f-addp">+ Ajouter une prime</button>
   <label for="f-prime">Ce mois contient une prime ?</label>
   <select id="f-prime">
-    <option value="auto">Détection automatique</option>
+    <option value="auto">Automatique (oui si une prime est saisie)</option>
     <option value="oui">Oui (13ᵉ mois, prime, intéressement…)</option>
     <option value="non">Non, mois normal</option>
   </select>
@@ -210,6 +223,11 @@ code{background:#fff;padding:1px 5px;border-radius:5px;font-size:12px}
     <button class="btn s" id="s-disconnect">Déconnecter</button>
   </div>
   <div class="card" style="margin:12px 0 0">
+    <div class="ttl">Types de primes</div>
+    <div id="s-ptypes"></div>
+    <div class="prow"><input id="s-pnew" placeholder="Nouveau type de prime" style="flex:1"><button class="x" id="s-padd" aria-label="Ajouter ce type" style="color:var(--vio)">+</button></div>
+  </div>
+  <div class="card" style="margin:12px 0 0">
     <div class="ttl">Taux de prélèvement à la source</div>
     <p class="tip" style="margin-top:0">Indique ton taux pour chaque année (en %). Il sert à calculer l'impôt des mois où tu n'as pas saisi le montant exact.</p>
     <div id="s-taux"></div>
@@ -244,7 +262,9 @@ const PRIME_SEUIL = 1.3;   // un mois > 130 % du mois médian de l'année = mois
 const LKEY='mes-salaires-v2', SKEY='mes-salaires-settings';
 const MOIS=['Janv','Févr','Mars','Avr','Mai','Juin','Juil','Août','Sept','Oct','Nov','Déc'];
 const MOISL=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-const EMPTY=()=>({v:2,company:'',start:'',name:'',months:{},taux:{},updated:0});
+const PRIME_TYPES=['Prime vacances','Prime vendanges','Prime fin d\'année','Projets transversaux','Prime ambassadeur'];
+const PCOL=['#4c3bc9','#2bb3a0','#e8740c','#d6457a','#2f80ed','#8b85b0','#b7791f','#0f766e'];
+const EMPTY=()=>({v:2,company:'',start:'',name:'',months:{},taux:{},primeTypes:[...PRIME_TYPES],updated:0});
 let DB=norm(ls(LKEY));
 let SET=ls(SKEY)||{url:'',key:'',connected:false};
 let DEMO=null, sel=null, editing=null, hidden=true;
@@ -252,7 +272,9 @@ let pushTimer=null;
 
 function ls(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
-function norm(d){d={...EMPTY(),...(d||{})};d.months=d.months||{};d.taux=d.taux||{};return d}
+function norm(d){d={...EMPTY(),...(d||{})};d.months=d.months||{};d.taux=d.taux||{};if(!Array.isArray(d.primeTypes)||!d.primeTypes.length)d.primeTypes=[...PRIME_TYPES];return d}
+function ptypes(){const d=data(),s=new Set(d.primeTypes);Object.values(d.months).forEach(e=>(e.primes||[]).forEach(p=>s.add(p.type)));return[...s]}
+const pcol=t=>PCOL[ptypes().indexOf(t)%PCOL.length];
 const $=s=>document.querySelector(s);
 const data=()=>DEMO||DB;
 const ready=()=>!!(SET.url&&SET.key);
@@ -272,7 +294,7 @@ function yearStats(y){
   const d=data(),t=+d.taux[y];
   const list=[];for(let m=1;m<=12;m++){const e=d.months[key(y,m)];if(e&&+e.net)list.push({m,...e,net:+e.net})}
   const med=median(list.map(e=>e.net));
-  list.forEach(e=>{e.isPrime=e.prime===true||(e.prime==null&&list.length>=3&&e.net>PRIME_SEUIL*med);
+  list.forEach(e=>{e.isPrime=e.prime===true||(e.prime==null&&((e.primes||[]).length>0||(list.length>=3&&e.net>PRIME_SEUIL*med)));
     e.impV=e.imp!=null&&e.imp!==''?+e.imp:(isFinite(t)&&t>0?e.net*t/100:NaN)});
   const normal=list.filter(e=>!e.isPrime);
   const hab=normal.length?normal.reduce((a,e)=>a+e.net,0)/normal.length:median(list.map(e=>e.net));
@@ -283,7 +305,9 @@ function yearStats(y){
   const brutList=list.filter(e=>+e.brut);
   const brut=brutList.length===list.length&&list.length?brutList.reduce((a,e)=>a+ +e.brut,0):NaN;
   const cot=isFinite(brut)?brut-total:NaN;
-  return {year:y,list,n:list.length,byM:Object.fromEntries(list.map(e=>[e.m,e])),total,hab,primes,
+  const pb={};list.forEach(e=>(e.primes||[]).forEach(p=>{if(!pb[p.type])pb[p.type]={brut:0,months:[]};pb[p.type].brut+=+p.brut||0;if(!pb[p.type].months.includes(e.m))pb[p.type].months.push(e.m)}));
+  const pbTotal=Object.values(pb).reduce((a,x)=>a+x.brut,0);
+  return {year:y,pb,pbTotal,list,n:list.length,byM:Object.fromEntries(list.map(e=>[e.m,e])),total,hab,primes,
     imp,taux:impKnown&&total?imp/total:NaN,apres:total-(isFinite(imp)?imp:0),brut,cot,joursImp:impKnown&&total?imp/total*365:NaN};
 }
 function allStats(){
@@ -372,12 +396,45 @@ function renderYear(){
     ${isFinite(s.brut)?`<div class="row"><span>Brut · cotisations</span><span class="num">${eur(s.brut)} · ${pct(s.cot/s.brut)}</span></div>`:''}
     <div class="row"><span>Mois saisis</span><span class="num">${s.n} / 12</span></div>
   </div>
+  ${primeCard(s)}
   <div class="facts">
     ${anc?`<div class="fact"><div class="ic vio">${I.cal}</div><div><b>${anc} dans ${esc(d.company)||'ta boîte'}</b><span>Arrivé en ${MOISL[+d.start.slice(5)-1]} ${d.start.slice(0,4)}</span></div></div>`:''}
     ${all.length>1?`<div class="fact"><div class="ic vio">${I.up}</div><div><b>Salaire habituel : ${sgn(all[all.length-1].hab/first.hab-1,0)} depuis ${first.year}</b><span>${eur(first.hab)} → ${eur(all[all.length-1].hab)} par mois · record en ${best.year}</span></div></div>`:''}
     ${baisseFact(all)}
     <div class="fact"><div class="ic tea">${I.gift}</div><div><b>${eur(totPrimes)} de primes depuis ${first.year}</b><span>${primeMonths(all)}</span></div></div>
   </div>`;
+}
+function primeCard(s){
+  const types=Object.keys(s.pb);if(!types.length)return'';
+  types.sort((a,b)=>s.pb[b].brut-s.pb[a].brut);
+  const pp=s.prev&&s.prev.pb;
+  return `<div class="card"><div class="ttl">Primes ${s.year} · brut</div>
+  ${types.map(t=>{const x=s.pb[t],o=pp&&pp[t];const ev=o&&o.brut?x.brut/o.brut-1:NaN;
+    return `<div class="ptype"><i class="dot" style="background:${pcol(t)};width:12px;height:12px"></i><div class="nm"><span>${esc(t)}</span><small>${x.months.map(m=>MOISL[m-1]).join(', ')}</small></div>
+    <div style="text-align:right"><span class="num">${eur(x.brut)}</span><br><small style="font-size:12px;font-weight:700;color:${!isFinite(ev)?'var(--mut)':ev<0?'var(--oraT)':'var(--vio)'}">${isFinite(ev)?sgn(ev)+' vs '+s.prev.year:o?'':'nouvelle'}</small></div></div>`}).join('')}
+  <div class="ptype"><div class="nm"><b>Total des primes</b></div><div style="text-align:right"><span class="num"><b>${eur(s.pbTotal)}</b></span>${pp&&s.prev.pbTotal?`<br><small style="font-size:12px;font-weight:700;color:${s.pbTotal<s.prev.pbTotal?'var(--oraT)':'var(--vio)'}">${sgn(s.pbTotal/s.prev.pbTotal-1)} vs ${s.prev.year}</small>`:''}</div></div>
+  ${s.n<12?`<p class="tip">Année en cours : certaines primes ne sont peut-être pas encore tombées.</p>`:''}</div>`;
+}
+function primeHist(all){
+  const ys=all.filter(s=>s.pbTotal>0);if(!ys.length)return'';
+  const types=ptypes().filter(t=>ys.some(s=>s.pb[t]));
+  const show=ys.slice(-4);
+  const W=330,H=190,top=22,bot=22,left=34,ch=H-top-bot,n=ys.length,gap=n>7?6:12,bw=Math.min(44,(W-left-4)/n-gap);
+  const max=axisMax(Math.max(...ys.map(s=>s.pbTotal))*1.1);
+  let svg=`<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Primes brutes par année">`;
+  for(let i=0;i<=4;i++){const yy=top+ch*(1-i/4);svg+=`<line x1="${left}" x2="${W}" y1="${yy}" y2="${yy}" stroke="#f0eefb"/><text class="amt" x="${left-5}" y="${yy+3}" font-size="9" fill="#554e80" text-anchor="end">${(max*i/4/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})}k</text>`}
+  ys.forEach((s,i)=>{const x=left+6+i*(bw+gap);let base=top+ch;
+    types.forEach(t=>{const v=s.pb[t]?s.pb[t].brut:0;const hh=v/max*ch;if(hh>0){svg+=`<rect x="${x}" y="${base-hh}" width="${bw}" height="${Math.max(hh-1,0.5)}" fill="${pcol(t)}" opacity="${s.n<12?0.6:1}"><title>${esc(t)} ${s.year} : ${eur(v)}</title></rect>`;base-=hh}});
+    svg+=`<text class="amt" x="${x+bw/2}" y="${base-5}" font-size="9" font-weight="700" fill="#1b1640" text-anchor="middle">${(s.pbTotal/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})}k</text><text x="${x+bw/2}" y="${H-6}" font-size="10" fill="#554e80" text-anchor="middle">${s.year}${s.n<12?'*':''}</text>`});
+  svg+='</svg>';
+  const cell=(s,t)=>{const v=s.pb[t]?s.pb[t].brut:0,p=s.prev&&s.prev.pb[t]?s.prev.pb[t].brut:0;
+    return `<td>${v?eur(v):'—'}${v&&p?`<br><small style="font-size:11px;font-weight:700;color:${v<p?'var(--oraT)':'var(--vio)'}">${sgn(v/p-1,0)}</small>`:''}</td>`};
+  return `<div class="card"><div class="ttl">Primes par année · brut</div>${svg}
+   <div class="legrow">${types.map(t=>`<span><i class="dot" style="background:${pcol(t)}"></i>${esc(t)}</span>`).join('')}</div>
+   <div style="overflow-x:auto;margin-top:10px"><table class="ytable ptable"><thead><tr><th>Prime</th>${show.map(s=>`<th>${s.year}${s.n<12?'*':''}</th>`).join('')}</tr></thead><tbody>
+   ${types.map(t=>`<tr><td>${esc(t.replace(/^Prime /,''))}</td>${show.map(s=>cell(s,t)).join('')}</tr>`).join('')}
+   <tr><td><b>Total</b></td>${show.map(s=>`<td><b>${eur(s.pbTotal)}</b></td>`).join('')}</tr></tbody></table></div>
+   <p class="tip">Évolution calculée par rapport à l'année précédente.</p></div>`;
 }
 function ancien(st){if(!st)return'';const a=new Date(st+'-01'),n=new Date();const mo=(n.getFullYear()-a.getFullYear())*12+n.getMonth()-a.getMonth();if(mo<1)return'';
   const y=Math.floor(mo/12),m=mo%12;return(y?y+' an'+(y>1?'s':''):'')+(y&&m?' et ':'')+(m?m+' mois':'')}
@@ -414,6 +471,7 @@ function renderHist(){
   <div class="card" style="margin-top:14px"><div class="ttl">Net par année</div>${yearChart(all)}
     <div class="legrow"><span><i class="dot" style="background:#4c3bc9"></i>Salaire habituel</span><span><i class="dot" style="background:#2bb3a0"></i>Primes</span><span>* année incomplète</span></div></div>
   <div class="card"><div class="ttl">Salaire habituel · net par mois</div>${habChart(all)}</div>
+  ${primeHist(all)}
   <div class="card"><div class="ttl">Année par année</div>
     <table class="ytable"><thead><tr><th>Année</th><th>Net</th><th>Habituel</th><th>Vs N−1*</th></tr></thead><tbody>
     ${all.slice().reverse().map(s=>`<tr><td>${s.year}${s.n<12?` <small style="color:var(--mut);font-weight:500">${s.n} m</small>`:''}</td><td>${eur(s.total)}</td><td>${eur(s.hab)}</td>
@@ -469,8 +527,22 @@ function openForm(k){
   F('month').value=k||nextMonth();
   F('net').value=e?e.net:'';F('imp').value=e&&e.imp!=null?e.imp:'';F('brut').value=e&&e.brut?e.brut:'';F('note').value=e&&e.note||'';
   F('prime').value=!e||e.prime==null?'auto':e.prime?'oui':'non';
+  fPrimes=(e&&e.primes||[]).map(p=>({...p}));drawPrimes();
   F('del').style.display=e?'block':'none';preview();$('#mForm').classList.add('on');
 }
+let fPrimes=[];
+function drawPrimes(){
+  const types=ptypes();
+  F('primes').innerHTML=fPrimes.map((p,i)=>`<div class="prow">
+    <select data-i="${i}" aria-label="Type de prime">${[...new Set([...types,p.type].filter(Boolean))].map(t=>`<option ${t===p.type?'selected':''}>${esc(t)}</option>`).join('')}</select>
+    <input data-i="${i}" type="number" inputmode="decimal" step="0.01" placeholder="Brut €" value="${p.brut??''}" aria-label="Montant brut">
+    <button type="button" class="x" data-i="${i}" aria-label="Retirer cette prime">×</button></div>`).join('');
+  F('primes').querySelectorAll('select').forEach(s=>s.onchange=()=>fPrimes[s.dataset.i].type=s.value);
+  F('primes').querySelectorAll('input').forEach(s=>s.oninput=()=>fPrimes[s.dataset.i].brut=s.value);
+  F('primes').querySelectorAll('.x').forEach(b=>b.onclick=()=>{fPrimes.splice(+b.dataset.i,1);drawPrimes()});
+}
+F('addp').onclick=()=>{const used=fPrimes.map(p=>p.type);fPrimes.push({type:ptypes().find(t=>!used.includes(t))||ptypes()[0],brut:''});drawPrimes();
+  const ins=F('primes').querySelectorAll('input');ins[ins.length-1].focus()};
 function preview(){
   const net=+F('net').value,y=(F('month').value||'').slice(0,4),t=+data().taux[y];
   const imp=F('imp').value!==''?+F('imp').value:(t?net*t/100:NaN);
@@ -486,6 +558,7 @@ F('save').onclick=()=>{
   const p=F('prime').value;
   const e={net};if(F('imp').value!=='')e.imp=+F('imp').value;if(+F('brut').value)e.brut=+F('brut').value;
   if(p!=='auto')e.prime=p==='oui';if(F('note').value.trim())e.note=F('note').value.trim();
+  const pr=fPrimes.filter(x=>+x.brut>0).map(x=>({type:x.type,brut:Math.round(+x.brut*100)/100}));if(pr.length)e.primes=pr;
   DB.months[k]=e;sel=+k.slice(0,4);commit();$('#mForm').classList.remove('on');
 };
 F('del').onclick=()=>{if(confirm('Supprimer ce mois ?')){delete DB.months[editing];commit();$('#mForm').classList.remove('on')}};
@@ -501,11 +574,21 @@ function openSet(){
   $('#s-disconnect').style.display=SET.connected?'block':'none';
   $('#s-connect').textContent=SET.connected?'Resynchroniser':'Connecter mon Drive';
   const ys=[...new Set(Object.keys(DB.months).map(k=>k.slice(0,4)))].sort();
+  drawPtypes();
   $('#s-taux').innerHTML=ys.length?ys.map(y=>`<div class="tauxrow"><span>${y}</span><input type="number" inputmode="decimal" step="0.1" placeholder="ex. 7,5" value="${DB.taux[y]??''}" data-y="${y}" aria-label="Taux ${y} en %"><span style="width:auto;font-weight:400;color:var(--mut)">%</span></div>`).join(''):'<p class="tip">Saisis d\'abord des mois.</p>';
   $('#s-taux').querySelectorAll('input').forEach(i=>i.onchange=()=>{const v=i.value.replace(',','.');if(v==='')delete DB.taux[i.dataset.y];else DB.taux[i.dataset.y]=+v;commit()});
   $('#mSet').classList.add('on');
 }
 $('#gear').onclick=openSet;
+function drawPtypes(){
+  const used=t=>Object.values(DB.months).some(e=>(e.primes||[]).some(p=>p.type===t));
+  $('#s-ptypes').innerHTML=DB.primeTypes.map((t,i)=>`<div class="ptype"><i class="dot" style="background:${PCOL[i%PCOL.length]};width:12px;height:12px"></i><div class="nm">${esc(t)}</div>
+    <button class="x" style="width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:#fff;color:#9b1c1c" data-i="${i}" aria-label="Supprimer ${esc(t)}">×</button></div>`).join('');
+  $('#s-ptypes').querySelectorAll('button').forEach(b=>b.onclick=()=>{const t=DB.primeTypes[+b.dataset.i];
+    if(used(t))return alert('Ce type est utilisé dans tes mois : il reste dans la liste.');
+    DB.primeTypes.splice(+b.dataset.i,1);commit();drawPtypes()});
+}
+$('#s-padd').onclick=()=>{const v=$('#s-pnew').value.trim();if(!v||DB.primeTypes.includes(v))return;DB.primeTypes.push(v);$('#s-pnew').value='';commit();drawPtypes()};
 $('#s-close').onclick=()=>$('#mSet').classList.remove('on');
 $('#s-url').onchange=e=>{SET.url=e.target.value.trim();lsSet(SKEY,SET)};
 $('#s-key').onchange=e=>{SET.key=e.target.value.trim();lsSet(SKEY,SET)};
