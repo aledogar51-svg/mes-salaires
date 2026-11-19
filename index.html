@@ -357,9 +357,13 @@ function yearStats(y){
     taux:impKnown&&total?imp/total:(netKnown?pas/netKnown:NaN),tauxPas:netKnown?pas/netKnown:NaN,
     apres:total-(isFinite(imp)?imp:0),brut,cot,joursImp:impKnown&&total?imp/total*365:(netKnown?pas/netKnown*365:NaN)};
 }
+const histOf=all=>all.filter(s=>!s.partial);
 function allStats(){
   const ys=years().map(yearStats);
-  ys.forEach((s,i)=>{const p=ys[i-1];if(!p)return;s.prev=p;
+  // année d'arrivée incomplète : visible dans « Mon année » mais hors historique et comparaisons
+  const cy=new Date().getFullYear();
+  ys.forEach((s,i)=>{s.partial=i===0&&s.n<12&&s.year<cy&&ys.length>1});
+  ys.forEach((s,i)=>{const p=ys[i-1];if(!p||p.partial)return;s.prev=p;
     const common=s.list.filter(e=>p.byM[e.m]).map(e=>e.m);
     s.common=common;s.cur=common.reduce((a,m)=>a+s.byM[m].hpF,0);s.old=common.reduce((a,m)=>a+p.byM[m].hpF,0);
     s.evSame=s.old?s.cur/s.old-1:NaN;
@@ -388,7 +392,8 @@ function renderYear(){
       <button class="btn s" onclick="startDemo()">Voir la démo</button></div>`;return;
   }
   if(!all.some(s=>s.year===sel))sel=all[all.length-1].year;
-  const s=all.find(x=>x.year===sel),first=all[0];
+  const hist=histOf(all);
+  const s=all.find(x=>x.year===sel),first=hist[0]||all[0];
   const hasImp=isFinite(s.imp);
 
   // anneau : salaire habituel / primes / impôt
@@ -399,13 +404,14 @@ function renderYear(){
   let off=0,arcs='';parts.forEach(([v,c])=>{const L=v/s.total*C;if(L>0.5){arcs+=`<circle cx="80" cy="80" r="${R}" fill="none" stroke="${c}" stroke-width="22" stroke-dasharray="${Math.max(L-g,0.5)} ${C}" stroke-dashoffset="${-off}"/>`;off+=L}});
 
   const neg=s.prev&&s.evSame<0;
-  const best=all.filter(x=>x.n>=3).reduce((a,b)=>b.hab>a.hab?b:a,all[0]);
+  const best=hist.filter(x=>x.n>=3).reduce((a,b)=>b.hab>a.hab?b:a,first);
   const fullYears=all.filter(x=>x.n===12);
-  const totPrimes=all.reduce((a,x)=>a+x.primes,0);
+  const totPrimes=hist.reduce((a,x)=>a+x.primes,0);
   const anc=ancien(d.start);
 
   el.innerHTML=`
   <div class="chips">${all.map(x=>`<button class="chip ${x.year===sel?'on':''}" onclick="pick(${x.year})">${x.year}</button>`).join('')}</div>
+  ${s.partial?`<div class="banner" style="background:var(--vio2);color:var(--vio)"><span>Année d'arrivée incomplète (${s.n} mois) : elle n'entre pas dans l'historique ni dans les comparaisons.</span></div>`:''}
   <div class="card donutcard">
     <div class="donut">
       <svg role="img" aria-label="Répartition du net ${s.year}" width="160" height="160" viewBox="0 0 160 160"><circle cx="80" cy="80" r="${R}" fill="none" stroke="#f0eefb" stroke-width="22"/><g transform="rotate(-90 80 80)">${arcs}</g></svg>
@@ -419,9 +425,9 @@ function renderYear(){
   </div>
   <div class="tiles">
     <div class="tile v1 ${neg?'neg':''}">
-      <span class="l">${s.prev?'Hors primes vs '+s.prev.year:'Première année'}</span>
+      <span class="l">${s.prev?'Hors primes vs '+s.prev.year:s.partial?'Année d\'arrivée':'Première année complète'}</span>
       <span class="v">${s.prev?sgn(s.evSame):s.n+' mois'}</span>
-      <span class="l amt">${s.prev?seur((s.cur-s.old)/s.common.length)+'/mois · mêmes mois':'depuis ton arrivée'}</span>
+      <span class="l amt">${s.prev?seur((s.cur-s.old)/s.common.length)+'/mois · mêmes mois':s.partial?'hors comparaisons':'point de départ des comparaisons'}</span>
     </div>
     <div class="tile v2">
       ${hasImp&&isFinite(s.joursImp)?`<span class="l">Pour payer l'impôt</span><span class="v">${Math.round(s.joursImp)} jours</span><span class="l">de travail · taux ${pct(s.taux)}</span>`:
@@ -449,9 +455,9 @@ function renderYear(){
   ${primeCard(s)}
   <div class="facts">
     ${anc?`<div class="fact"><div class="ic vio">${I.cal}</div><div><b>${anc} dans ${esc(d.company)||'ta boîte'}</b><span>Arrivé en ${MOISL[+d.start.slice(5)-1]} ${d.start.slice(0,4)}</span></div></div>`:''}
-    ${all.length>1?`<div class="fact"><div class="ic vio">${I.up}</div><div><b>Hors primes : ${sgn(all[all.length-1].hab/first.hab-1,0)} depuis ${first.year}</b><span>${eur(first.hab)} → ${eur(all[all.length-1].hab)} par mois · record en ${best.year}</span></div></div>`:''}
-    ${baisseFact(all)}
-    <div class="fact"><div class="ic tea">${I.gift}</div><div><b>${eur(totPrimes)} de primes depuis ${first.year}</b><span>${primeMonths(all)}</span></div></div>
+    ${hist.length>1?`<div class="fact"><div class="ic vio">${I.up}</div><div><b>Hors primes : ${sgn(all[all.length-1].hab/first.hab-1,0)} depuis ${first.year}</b><span>${eur(first.hab)} → ${eur(all[all.length-1].hab)} par mois · record en ${best.year}</span></div></div>`:''}
+    ${baisseFact(hist)}
+    <div class="fact"><div class="ic tea">${I.gift}</div><div><b>${eur(totPrimes)} de primes depuis ${first.year}</b><span>${primeMonths(hist)}</span></div></div>
   </div>`;
 }
 function career(){
@@ -480,7 +486,9 @@ function thCard(s){
 function chLabel(c){const a=[];if(isFinite(c.oldTh)&&c.newTh!==c.oldTh)a.push(thf(c.oldTh).replace(' €/h','')+' → '+thf(c.newTh));
   if(isFinite(c.oldCo)&&c.newCo!==c.oldCo)a.push('coef '+c.oldCo+' → '+c.newCo);return a.join(' · ')}
 function thHist(){
-  const {pts,ch}=career();const v=pts.filter(p=>isFinite(p.thE)).map(p=>({...p,th:p.thE}));if(v.length<1)return'';
+  const {pts,ch:chAll}=career();const h0=histOf(allStats())[0];const y0=h0?h0.year:0;
+  const v=pts.filter(p=>isFinite(p.thE)&&p.y>=y0).map(p=>({...p,th:p.thE}));if(v.length<1)return'';
+  const ch=chAll.filter(c=>c.y>=y0);
   const W=330,H=170,top=24,bot=22,left=40,cw=W-left-8,chh=H-top-bot,n=v.length;
   const lo=Math.min(...v.map(p=>p.th)),hi=Math.max(...v.map(p=>p.th));
   const mn=Math.floor(lo*0.97*10)/10,mx=Math.ceil(hi*1.02*10)/10||mn+1;
@@ -614,7 +622,7 @@ function pick(y){sel=y;renderYear();$('#htitle').textContent='Ton année '+y}
 
 /* ---------- vue « Historique » ---------- */
 function renderHist(){
-  const all=allStats(),el=$('#v-hist');
+  const all=histOf(allStats()),el=$('#v-hist');
   if(!all.length){el.innerHTML='<div class="empty"><h2>Historique vide</h2><p>Saisis un mois avec le bouton « Ajouter ».</p></div>';return}
   const tot=all.reduce((a,s)=>({net:a.net+s.total,primes:a.primes+s.primes,imp:a.imp+(isFinite(s.imp)?s.imp:0),impOk:a.impOk&&s.impKnown}),{net:0,primes:0,imp:0,impOk:true});
   const first=all[0];
