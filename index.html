@@ -275,7 +275,8 @@ function ls(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return nu
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function norm(d){d={...EMPTY(),...(d||{})};d.months=d.months||{};d.taux=d.taux||{};if(!Array.isArray(d.primeTypes)||!d.primeTypes.length)d.primeTypes=[...PRIME_TYPES];
   if(!Array.isArray(d.monthlyTypes))d.monthlyTypes=[];
-  if(!d.mig1){if(!d.primeTypes.includes(ANC))d.primeTypes.push(ANC);if(!d.monthlyTypes.includes(ANC))d.monthlyTypes.push(ANC);d.mig1=true}
+  if(!d.mig1){if(!d.primeTypes.includes(ANC))d.primeTypes.push(ANC);d.mig1=true}
+  if(!d.mig2){d.monthlyTypes=d.monthlyTypes.filter(t=>t!==ANC);d.mig2=true}
   return d}
 const isMonthly=t=>(data().monthlyTypes||[]).includes(t);
 function ptypes(){const d=data(),s=new Set(d.primeTypes);Object.values(d.months).forEach(e=>(e.primes||[]).forEach(p=>s.add(p.type)));return[...s]}
